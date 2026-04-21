@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Equilibrium Finance — Launch Splash
+  A centered Equilibrium mark over the signature deep navy, sized to render
+  clearly on every device after Expo's "contain" resize.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1242 2688">
+  <defs>
+    <linearGradient id="splash-surface" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#080e1a"/>
+      <stop offset="1" stop-color="#0b111d"/>
+    </linearGradient>
+    <linearGradient id="splash-beam" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#a0e4fe"/>
+      <stop offset="1" stop-color="#66aac2"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1242" height="2688" fill="url(#splash-surface)"/>
+
+  <!-- Centered monogram, scaled down from the icon -->
+  <g transform="translate(371 1080)">
+    <rect x="120" y="0" width="24" height="440" rx="12" fill="url(#splash-beam)" opacity="0.9"/>
+    <rect x="144" y="36" width="280" height="48" rx="24" fill="#e6ebfc"/>
+    <rect x="144" y="196" width="220" height="48" rx="24" fill="#a0e4fe"/>
+    <rect x="144" y="356" width="280" height="48" rx="24" fill="#e6ebfc"/>
+  </g>
+
+  <!-- Wordmark beneath the symbol -->
+  <text x="621" y="1720" text-anchor="middle" font-family="Manrope, -apple-system, sans-serif"
+        font-size="84" font-weight="700" letter-spacing="-2" fill="#e6ebfc">Equilibrium</text>
+  <text x="621" y="1780" text-anchor="middle" font-family="Manrope, -apple-system, sans-serif"
+        font-size="28" font-weight="500" letter-spacing="6" fill="#a5abbb">FINANCE</text>
+</svg>

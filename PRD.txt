@@ -1,0 +1,122 @@
+# Product Requirements Document (PRD): Equilibrium Finance
+
+## 1. Project Overview
+
+**Product Name:** Equilibrium Finance
+
+**Platform:** React Native (iOS & Android)
+
+**Creative North Star:** "The Architectural Vault" - A high-end, secure, and minimalist financial management experience that prioritizes structural integrity and clarity.
+
+## 2. Executive Summary
+
+Equilibrium is a premium personal finance management application designed for users who demand absolute security and a sophisticated interface. The app provides a high-fidelity overview of financial health, transaction tracking, budgeting, and deep analytics, all wrapped in a custom-designed dark theme.
+
+## 3. Target Audience
+
+*   **Primary:** High-net-worth individuals and professionals seeking a private, secure, and visually refined way to manage their assets.
+
+*   **User Persona:** "The Architect" - Values order, precision, and privacy. They want a financial tool that feels like a secure vault rather than a cluttered social feed.
+
+## 4. Feature Scope
+
+### 4.1. Core Experience (Phase 1)
+
+*   **Authentication & Security:**
+
+    *   Sleek Splash Screen with security indicators.
+
+    *   Secure Sign In/Sign Up flows with field validation.
+
+    *   Biometric Authentication (FaceID/TouchID) integration.
+
+*   **Financial Dashboard:**
+
+    *   Total Net Worth and Available Balance cards.
+
+    *   Monthly Summary (Income vs. Expenses) with sparkline visualizations.
+
+    *   Recent Transactions quick-view.
+
+*   **Transaction Management:**
+
+    *   Searchable Transaction History with detailed category icons.
+
+    *   Manual Transaction Entry (Amount, Category, Date, Wallet, Notes).
+
+    *   Support for multiple "Wallets" or "Vaults".
+
+*   **Budgeting & Planning:**
+
+    *   Category-based spending limits (Groceries, Entertainment, Utilities, etc.).
+
+    *   Visual progress bars showing "Spent" vs. "Limit".
+
+    *   Real-time "Remaining" balance calculations.
+
+*   **Insights & Analytics:**
+
+    *   Spending Breakdown (Donut chart).
+
+    *   Spending Over Time (Line/Area chart).
+
+    *   Top Spending Categories list.
+
+*   **App Settings:**
+
+    *   Profile management (Avatar, Name, Membership status).
+
+    *   Security & Privacy toggles (2FA, Biometrics).
+
+    *   Preference controls (Theme switching, Notifications).
+
+## 5. Visual Identity & Design System
+
+*   **Design System Name:** Architectural Vault ({{DATA:DESIGN_SYSTEM:DESIGN_SYSTEM_1}})
+
+*   **Color Mode:** Dark (Primary), Light (Secondary/Legacy support).
+
+*   **Color Palette:** Deep Navy (#080e1a), Slate (#0d1321), Cyan Accents (#a0e4fe), and subtle Border colors (#424856/15).
+
+*   **Typography:** Manrope (Clean, geometric sans-serif).
+
+*   **Component Style:** High contrast, glassmorphism (backdrop-blur), and tight spacing.
+
+## 6. Functional Requirements (for Claude Code)
+
+*   **State Management:** Use a robust state management library (e.g., Redux Toolkit or Zustand) to handle financial data across the app.
+
+*   **Navigation:** Implement React Navigation with a custom-styled Bottom Tab Bar and Stack Navigators for deep linking.
+
+*   **Charts:** Utilize `react-native-svg-charts` or `victory-native` to reproduce the high-fidelity visualizations designed.
+
+*   **Forms:** Use `react-hook-form` for efficient and validated user input in "Add Transaction" and "Auth" flows.
+
+*   **Theming:** Implement a theme provider that supports the custom tokens defined in the "Architectural Vault" design system.
+
+## 7. Success Metrics
+
+*   **Engagement:** Daily Active Users (DAU) monitoring their "Vault".
+
+*   **Retention:** 30-day retention rate for users who set up a budget.
+
+*   **Security:** Zero security breaches; 90% of users enabling Biometric Auth.
+
+## 8. Screen Inventory (References)
+
+*   Dashboard: {{DATA:SCREEN:SCREEN_5}}
+
+*   History: {{DATA:SCREEN:SCREEN_13}}
+
+*   Budget: {{DATA:SCREEN:SCREEN_20}}
+
+*   Insights: {{DATA:SCREEN:SCREEN_11}}
+
+*   Settings: {{DATA:SCREEN:SCREEN_14}}
+
+*   Auth: {{DATA:SCREEN:SCREEN_17}}, {{DATA:SCREEN:SCREEN_8}}
+
+*   Entry: {{DATA:SCREEN:SCREEN_19}}
+
+*   Splash: {{DATA:SCREEN:SCREEN_15}}
+

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Equilibrium Finance — App Icon
+  Architectural Vault design language. The mark is a balanced monogram ("E"
+  rendered as three stacked weights that resolve into equilibrium) over a deep
+  navy surface, with a cyan architectural cross-beam for structural integrity.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="surface" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#080e1a"/>
+      <stop offset="1" stop-color="#0d1321"/>
+    </linearGradient>
+    <linearGradient id="beam" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#a0e4fe"/>
+      <stop offset="1" stop-color="#66aac2"/>
+    </linearGradient>
+    <filter id="rim" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+  </defs>
+
+  <!-- Deep navy field with subtle tonal gradient (no border, per design rule) -->
+  <rect width="1024" height="1024" fill="url(#surface)"/>
+
+  <!-- Architectural inner vault — surface_container_highest tonal shift -->
+  <rect x="128" y="128" width="768" height="768" rx="96" fill="#1d2637" opacity="0.5"/>
+
+  <!-- The Equilibrium mark: three horizontal weights of graduated length,
+       locked by a vertical cyan spine — suggests balanced ledgers. -->
+  <g>
+    <!-- vertical spine (the axis of balance) -->
+    <rect x="320" y="256" width="32" height="512" rx="16" fill="url(#beam)" opacity="0.9"/>
+    <!-- rim glow behind spine -->
+    <rect x="304" y="240" width="64" height="544" rx="32" fill="#a0e4fe" opacity="0.12" filter="url(#rim)"/>
+
+    <!-- top crossbar (income weight) -->
+    <rect x="352" y="296" width="368" height="64" rx="32" fill="#e6ebfc"/>
+    <!-- middle crossbar (balance / equilibrium) -->
+    <rect x="352" y="480" width="288" height="64" rx="32" fill="#a0e4fe"/>
+    <!-- bottom crossbar (reserves) -->
+    <rect x="352" y="664" width="368" height="64" rx="32" fill="#e6ebfc"/>
+  </g>
+
+  <!-- Structural accent: a thin cyan rim across the base (tertiary-container accent line, per DS spec) -->
+  <rect x="128" y="880" width="768" height="4" fill="#a0e4fe" opacity="0.5"/>
+</svg>
