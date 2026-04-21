@@ -21,8 +21,20 @@ supabase db push
 
 ### b) Dashboard SQL editor
 
-Open **SQL editor** in the Supabase dashboard and paste the entire contents of
-`migrations/20260421000000_init.sql`, then **Run**.
+Open **SQL editor** in the Supabase dashboard and paste the contents of **each**
+migration file in order:
+
+1. `migrations/20260421000000_init.sql` — schema + RLS + initial seeds
+2. `migrations/20260421010000_expand_categories.sql` — expanded categories + safe wallet backfill
+
+Run each one and confirm "Success. No rows returned" before moving on.
+
+> If you ran just the first migration and now your categories list looks thin
+> (or you're missing Side Hustle / Electricity / Internet / etc.), run the
+> expansion migration — it's idempotent and only adds what's missing. It also
+> backfills a `Main Vault` wallet for any user who signed up before the
+> signup trigger existed, which is the usual cause of "I can't pick a wallet
+> in the Add Transaction screen."
 
 ## 3. Verify Row Level Security
 

@@ -1,5 +1,14 @@
-import { useMemo, useState } from 'react';
-import { View, StyleSheet, Pressable, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  View,
+  StyleSheet,
+  Pressable,
+  ScrollView,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  TextInput,
+} from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -11,6 +20,7 @@ import { palette, radius, spacing, type Color } from '@/theme';
 import { useWallets } from '@/features/wallets/queries';
 import { useCategories } from '@/features/categories/queries';
 import { useCreateTransaction } from '@/features/transactions/mutations';
+import { useCreateCategory } from '@/features/categories/mutations';
 import type { TransactionKind } from '@/types/database';
 
 const schema = z.object({
@@ -23,12 +33,26 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
+/** Icons the user can pick when creating a custom category (common finance ones). */
+const CUSTOM_ICON_CHOICES: IconName[] = [
+  'label', 'shopping_cart', 'shopping_bag', 'restaurant', 'local_cafe',
+  'home', 'bolt', 'water_drop', 'wifi', 'phone_iphone', 'local_gas_station',
+  'directions_car', 'flight_takeoff', 'theaters', 'fitness_center',
+  'pets', 'school', 'medication', 'redeem', 'card_giftcard', 'subscriptions',
+  'savings', 'trending_up', 'work', 'laptop_mac',
+];
+
 export default function NewTransaction() {
   const router = useRouter();
   const wallets = useWallets();
   const categories = useCategories();
   const create = useCreateTransaction();
+  const createCategory = useCreateCategory();
   const [occurredAt] = useState(new Date());
+  const [amountText, setAmountText] = useState('');
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryIcon, setNewCategoryIcon] = useState<IconName>('label');
 
   const { control, handleSubmit, watch, setValue, formState } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -47,15 +71,23 @@ export default function NewTransaction() {
   const walletId = watch('walletId');
   const categoryId = watch('categoryId');
 
-  // Pre-select the default wallet so the form is usable in one tap.
-  useMemo(() => {
-    if (!walletId && wallets.data && wallets.data[0]) setValue('walletId', wallets.data[0].id);
+  // Pre-select the user's first wallet the moment wallets load.
+  // NOTE: previous revision used useMemo here — that was wrong, useMemo is for
+  // derived *values*, not side effects. useEffect is the correct hook.
+  useEffect(() => {
+    if (!walletId && wallets.data && wallets.data[0]) {
+      setValue('walletId', wallets.data[0].id, { shouldValidate: false });
+    }
   }, [walletId, wallets.data, setValue]);
 
-  const availableCategories = (categories.data ?? []).filter((c) => c.kind === kind);
+  const availableCategories = useMemo(
+    () => (categories.data ?? []).filter((c) => c.kind === kind),
+    [categories.data, kind],
+  );
 
   const onSubmit = async (v: FormValues) => {
     try {
+      console.log('Submitting', v);
       await create.mutateAsync({
         walletId: v.walletId,
         categoryId: v.categoryId,
@@ -70,6 +102,30 @@ export default function NewTransaction() {
       Alert.alert('Could not save', e?.message ?? 'Please try again.');
     }
   };
+
+  const saveNewCategory = async () => {
+    const trimmed = newCategoryName.trim();
+    if (!trimmed) {
+      Alert.alert('Name required', 'Give your category a short name.');
+      return;
+    }
+    try {
+      const created = await createCategory.mutateAsync({
+        name: trimmed,
+        icon: newCategoryIcon,
+        kind,
+      });
+      setValue('categoryId', created.id, { shouldValidate: true });
+      setAddingCategory(false);
+      setNewCategoryName('');
+      setNewCategoryIcon('label');
+    } catch (e: any) {
+      Alert.alert('Could not create category', e?.message ?? 'Please try again.');
+    }
+  };
+
+  const noWallets = !wallets.isLoading && (wallets.data?.length ?? 0) === 0;
+  const noCategoriesAtAll = !categories.isLoading && (categories.data?.length ?? 0) === 0;
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: palette.surfaceContainerLow }}>
@@ -88,21 +144,48 @@ export default function NewTransaction() {
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {/* Kind segmented */}
           <Controller
             control={control}
             name="kind"
             render={({ field }) => (
               <View style={styles.segmented}>
-                <SegBtn label="Expense" icon="remove_circle" color="tertiary" active={field.value === 'expense'} onPress={() => { field.onChange('expense'); setValue('categoryId', '' as any); }} />
-                <SegBtn label="Income" icon="add_circle" color="secondary" active={field.value === 'income'} onPress={() => { field.onChange('income'); setValue('categoryId', '' as any); }} />
-                <SegBtn label="Transfer" icon="swap_horiz" color="primary" active={field.value === 'transfer'} onPress={() => { field.onChange('transfer'); setValue('categoryId', '' as any); }} />
+                <SegBtn
+                  label="Expense"
+                  icon="remove_circle"
+                  color="tertiary"
+                  active={field.value === 'expense'}
+                  onPress={() => {
+                    field.onChange('expense');
+                    setValue('categoryId', undefined as unknown as string);
+                  }}
+                />
+                <SegBtn
+                  label="Income"
+                  icon="add_circle"
+                  color="secondary"
+                  active={field.value === 'income'}
+                  onPress={() => {
+                    field.onChange('income');
+                    setValue('categoryId', undefined as unknown as string);
+                  }}
+                />
+                <SegBtn
+                  label="Transfer"
+                  icon="swap_horiz"
+                  color="primary"
+                  active={field.value === 'transfer'}
+                  onPress={() => {
+                    field.onChange('transfer');
+                    setValue('categoryId', undefined as unknown as string);
+                  }}
+                />
               </View>
             )}
           />
 
-          {/* Amount hero */}
+          {/* Amount — display-as-hero */}
           <Card tone="high" padding={spacing[8]} vault>
             <Text variant="labelSm" color="onSurfaceVariant">
               Amount
@@ -116,17 +199,28 @@ export default function NewTransaction() {
                     <Text variant="displayLg" color="onSurface" style={{ marginRight: 8 }}>
                       $
                     </Text>
-                    <Input
+                    <TextInput
                       placeholder="0.00"
+                      placeholderTextColor={palette.onSurfaceVariant}
                       keyboardType="decimal-pad"
                       returnKeyType="done"
-                      value={field.value?.toString() ?? ''}
-                      onChangeText={(t) => field.onChange(t.replace(/[^0-9.]/g, ''))}
+                      value={amountText}
+                      onChangeText={(t) => {
+                        // Strip everything but digits and a single decimal.
+                        const cleaned = t.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                        setAmountText(cleaned);
+                        field.onChange(cleaned === '' ? undefined : Number(cleaned));
+                      }}
                       onBlur={field.onBlur}
-                      error={fieldState.error?.message}
-                      style={{ flex: 1 }}
+                      selectionColor={palette.primary}
+                      style={styles.amountInput}
                     />
                   </View>
+                  {fieldState.error?.message && (
+                    <Text variant="bodySm" color="error" style={{ marginTop: spacing[2] }}>
+                      {fieldState.error.message}
+                    </Text>
+                  )}
                 </View>
               )}
             />
@@ -137,41 +231,121 @@ export default function NewTransaction() {
             <Text variant="labelMd" color="onSurfaceVariant">
               Wallet
             </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-              {(wallets.data ?? []).map((w) => (
-                <Chip
-                  key={w.id}
-                  label={w.name}
-                  icon={(w.icon as IconName) ?? 'account_balance_wallet'}
-                  tone={walletId === w.id ? 'primary' : 'neutral'}
-                  selected={walletId === w.id}
-                  onPress={() => setValue('walletId', w.id)}
-                />
-              ))}
-            </ScrollView>
+            {noWallets ? (
+              <Card tone="low" padding={spacing[4]}>
+                <Text variant="bodyMd" color="onSurfaceVariant">
+                  You don't have a wallet yet. A "Main Vault" is created automatically on signup — if you see this message, the Supabase migration probably hasn't finished applying. Re-run the migration from <Text color="primary">supabase/migrations</Text>.
+                </Text>
+              </Card>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+                {(wallets.data ?? []).map((w) => (
+                  <Chip
+                    key={w.id}
+                    label={w.name}
+                    icon={(w.icon as IconName) ?? 'account_balance_wallet'}
+                    tone={walletId === w.id ? 'primary' : 'neutral'}
+                    selected={walletId === w.id}
+                    onPress={() => setValue('walletId', w.id, { shouldValidate: true })}
+                  />
+                ))}
+              </ScrollView>
+            )}
           </View>
 
           {/* Category */}
           <View style={styles.block}>
-            <Text variant="labelMd" color="onSurfaceVariant">
-              Category
-            </Text>
-            <View style={styles.categoryGrid}>
-              {availableCategories.map((c) => {
-                const selected = categoryId === c.id;
-                const tone: Color = (c.color_token as Color) ?? 'primary';
-                return (
-                  <Pressable key={c.id} onPress={() => setValue('categoryId', c.id)} style={[styles.categoryTile, selected && { backgroundColor: palette.surfaceContainerHighest }]}>
-                    <View style={[styles.categoryIcon, { backgroundColor: palette.surfaceContainerHighest }]}>
-                      <Icon name={c.icon} size={20} color={tone} />
-                    </View>
-                    <Text variant="labelMd" color={selected ? 'primary' : 'onSurfaceVariant'} center numberOfLines={1}>
-                      {c.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+            <View style={styles.categoryHeader}>
+              <Text variant="labelMd" color="onSurfaceVariant">
+                Category
+              </Text>
+              {kind !== 'transfer' && (
+                <Pressable onPress={() => setAddingCategory((v) => !v)} hitSlop={8} style={styles.newBtn}>
+                  <Icon name={addingCategory ? 'close' : 'add'} size={14} color="primary" />
+                  <Text variant="labelMd" color="primary">
+                    {addingCategory ? 'Cancel' : 'New'}
+                  </Text>
+                </Pressable>
+              )}
             </View>
+
+            {addingCategory && (
+              <Card tone="low" padding={spacing[5]} style={{ gap: spacing[4] }}>
+                <Input
+                  label="Category name"
+                  placeholder={kind === 'income' ? 'e.g. Side Hustle' : 'e.g. Coffee'}
+                  value={newCategoryName}
+                  onChangeText={setNewCategoryName}
+                  autoCapitalize="words"
+                  returnKeyType="done"
+                  onSubmitEditing={saveNewCategory}
+                />
+                <View>
+                  <Text variant="labelMd" color="onSurfaceVariant" style={{ marginBottom: spacing[2] }}>
+                    Icon
+                  </Text>
+                  <View style={styles.iconGrid}>
+                    {CUSTOM_ICON_CHOICES.map((name) => (
+                      <Pressable
+                        key={name}
+                        onPress={() => setNewCategoryIcon(name)}
+                        style={[
+                          styles.iconChoice,
+                          newCategoryIcon === name && { backgroundColor: palette.surfaceContainerHighest, borderColor: palette.primary },
+                        ]}
+                      >
+                        <Icon name={name} size={18} color={newCategoryIcon === name ? 'primary' : 'onSurfaceVariant'} />
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+                <Button
+                  variant="primary"
+                  size="md"
+                  fullWidth
+                  loading={createCategory.isPending}
+                  onPress={saveNewCategory}
+                  haptic="success"
+                >
+                  Save category
+                </Button>
+              </Card>
+            )}
+
+            {noCategoriesAtAll ? (
+              <Card tone="low" padding={spacing[4]}>
+                <Text variant="bodyMd" color="onSurfaceVariant">
+                  No categories are seeded in your Supabase project. Apply the migrations in <Text color="primary">supabase/migrations/</Text> and the defaults will appear here.
+                </Text>
+              </Card>
+            ) : availableCategories.length === 0 && !addingCategory ? (
+              <Card tone="low" padding={spacing[4]}>
+                <Text variant="bodyMd" color="onSurfaceVariant">
+                  No {kind} categories yet. Tap <Text color="primary">New</Text> to create one.
+                </Text>
+              </Card>
+            ) : (
+              <View style={styles.categoryGrid}>
+                {availableCategories.map((c) => {
+                  const selected = categoryId === c.id;
+                  const tone: Color = (c.color_token as Color) ?? 'primary';
+                  return (
+                    <Pressable
+                      key={c.id}
+                      onPress={() => setValue('categoryId', c.id, { shouldValidate: true })}
+                      style={[styles.categoryTile, selected && { backgroundColor: palette.surfaceContainerHighest }]}
+                    >
+                      <View style={styles.categoryIcon}>
+                        <Icon name={c.icon} size={20} color={tone} />
+                      </View>
+                      <Text variant="labelMd" color={selected ? 'primary' : 'onSurfaceVariant'} center numberOfLines={1}>
+                        {c.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
           </View>
 
           {/* Merchant + note */}
@@ -197,6 +371,23 @@ export default function NewTransaction() {
               </Text>
             </View>
           </View>
+
+          {/* Debug: show why submit might be disabled */}
+          {(formState.errors.walletId || formState.errors.categoryId || formState.errors.amount) && (
+            <Card tone="low" padding={spacing[3]}>
+              <Text variant="labelSm" color="error">
+                {formState.errors.amount?.message
+                  ? 'Enter an amount. '
+                  : ''}
+                {formState.errors.walletId?.message
+                  ? 'Pick a wallet. '
+                  : ''}
+                {formState.errors.categoryId?.message
+                  ? 'Pick a category.'
+                  : ''}
+              </Text>
+            </Card>
+          )}
         </ScrollView>
 
         <View style={styles.footer}>
@@ -259,12 +450,31 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[3],
     borderRadius: radius.md,
   },
-  amountRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing[2] },
+  amountRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: spacing[2] },
+  amountInput: {
+    flex: 1,
+    color: palette.onSurface,
+    fontFamily: 'Manrope_700Bold',
+    fontSize: 40,
+    lineHeight: 48,
+    padding: 0,
+    includeFontPadding: false,
+  },
   block: { gap: spacing[3] },
   chipRow: { gap: spacing[2], paddingVertical: spacing[1] },
+  categoryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  newBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[1],
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[1.5],
+    backgroundColor: 'rgba(160,228,254,0.1)',
+    borderRadius: radius.pill,
+  },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   categoryTile: {
-    width: '31%',
+    width: '31.5%',
     paddingVertical: spacing[3],
     paddingHorizontal: spacing[2],
     borderRadius: radius.md,
@@ -278,6 +488,18 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: palette.surfaceContainerHighest,
+  },
+  iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
+  iconChoice: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.surfaceContainer,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   footer: {
