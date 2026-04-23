@@ -125,6 +125,17 @@ adb install -r android/app/build/outputs/apk/release/app-release.apk
 
 **Gradle build fails on "compileSdk 35 not found"** — Android SDK Platform 35 isn't installed. Open Android Studio → SDK Manager → SDK Platforms → check **Android 14.0 (UpsideDownCake)** → Apply.
 
+**Gradle build fails with `Java heap space` at `:app:collectReleaseDependencies` (or similar)** — Expo's default `org.gradle.jvmargs=-Xmx2g` is too small for RN 0.76 new-arch codegen. This repo's `scripts/patch-gradle.mjs` raises it to 8g and runs automatically via `npm run prebuild`. If you've already prebuilt with the old setting:
+
+```bash
+npm run patch:gradle          # rewrites android/gradle.properties
+cd android
+./gradlew --stop              # kill the stale daemon (still holds old heap)
+./gradlew clean assembleRelease
+```
+
+If you have less than 16 GB RAM, lower the `-Xmx8g` in [scripts/patch-gradle.mjs](scripts/patch-gradle.mjs) to `-Xmx6g`. **To cut build time in half**: in `android/gradle.properties`, change `reactNativeArchitectures=armeabi-v7a,arm64-v8a,x86,x86_64` to just `arm64-v8a` (every modern Android phone; only drop this if you're targeting low-end / pre-2018 devices).
+
 **APK installs but crashes on launch** — Almost always missing env vars. Open the build's Logs tab (EAS) or run `adb logcat -s ReactNativeJS` (local) and look for the line from `src/lib/supabase.ts` complaining about `EXPO_PUBLIC_SUPABASE_URL`.
 
 **"No development build installed" when running `expo start`** — That message is only shown in dev. For release APKs it doesn't apply. We removed `expo-dev-client` from deps already; if you ever want a local dev client, `npm i expo-dev-client` and then `npx expo run:android`.
