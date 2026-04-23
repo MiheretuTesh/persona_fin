@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { View, StyleSheet, Switch, Alert, Pressable } from 'react-native';
 import { Screen, TopBar, Avatar, Card, Text, Icon, Button, Section } from '@/components/ui';
-import { palette, radius, spacing, type Color } from '@/theme';
+import { useTheme } from '@/theme';
+import { radius, spacing } from '@/theme/tokens';
+import type { Color } from '@/theme/tokens';
 import { useProfile } from '@/features/profile/queries';
+import { useUpdateProfile } from '@/features/profile/mutations';
 import { useAuth } from '@/features/auth/store';
 import {
   biometricsAvailable,
@@ -11,29 +14,88 @@ import {
   promptBiometric,
   setBiometricEnabled,
 } from '@/features/auth/biometrics';
+import { CurrencyPickerModal } from '@/components/settings/CurrencyPickerModal';
+import { usePreferences } from '@/features/preferences/store';
+import * as LocalAuthentication from 'expo-local-authentication';
 
 export default function Settings() {
+  const { colors, mode, setMode } = useTheme();
   const profile = useProfile();
+  const updateProfile = useUpdateProfile();
   const signOut = useAuth((s) => s.signOut);
-  const [bioAvailable, setBioAvailable] = useState(false);
+  const [bioHasHardware, setBioHasHardware] = useState(false);
+  const [bioEnrolled, setBioEnrolled] = useState(false);
   const [bioEnabled, setBioEnabledState] = useState(false);
   const [bioType, setBioType] = useState<'face' | 'touch' | 'none'>('none');
+  const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
-      setBioAvailable(await biometricsAvailable());
-      setBioEnabledState(await isBiometricEnabled());
-      setBioType(await getBiometricType());
+      const [hw, enrolled, enabled, t] = await Promise.all([
+        LocalAuthentication.hasHardwareAsync(),
+        LocalAuthentication.isEnrolledAsync(),
+        isBiometricEnabled(),
+        getBiometricType(),
+      ]);
+      setBioHasHardware(hw);
+      setBioEnrolled(enrolled);
+      setBioEnabledState(enabled);
+      setBioType(t);
     })();
   }, []);
 
+  const bioAvailable = bioHasHardware && bioEnrolled;
+  const bioHint = !bioHasHardware
+    ? 'This device has no biometric hardware'
+    : !bioEnrolled
+      ? `Enroll ${bioType === 'face' ? 'Face ID' : 'a fingerprint'} in Settings first`
+      : bioEnabled
+        ? 'Required every time Equilibrium opens'
+        : 'Require biometrics on app launch';
+
   const toggleBiometric = async (next: boolean) => {
     if (next) {
+      if (!bioHasHardware) {
+        Alert.alert('Not supported', 'This device has no biometric sensor.');
+        return;
+      }
+      if (!bioEnrolled) {
+        Alert.alert(
+          'Set up biometrics first',
+          `Enroll ${bioType === 'face' ? 'Face ID' : 'a fingerprint'} in your device Settings, then come back.`,
+        );
+        return;
+      }
       const ok = await promptBiometric('Confirm to enable biometric unlock');
       if (!ok) return;
     }
     await setBiometricEnabled(next);
     setBioEnabledState(next);
+    // Mirror the change into the profile so other devices know the preference exists
+    updateProfile.mutate({ biometric_enabled: next });
+  };
+
+  const currency = usePreferences((s) => s.currency);
+  const setLocalCurrency = usePreferences((s) => s.setCurrency);
+
+  const pickCurrency = (code: string) => {
+    if (code === currency) return;
+    // 1) Update the local store *first* — UI reacts immediately, and the choice
+    //    survives offline / cold restart even if Supabase is unreachable.
+    setLocalCurrency(code);
+    // 2) Fire-and-forget to Supabase so the preference follows the user to
+    //    other devices. Surface any failure so we don't silently diverge.
+    updateProfile.mutate(
+      { currency: code },
+      {
+        onError: (err: any) => {
+          Alert.alert(
+            'Saved on this device, but not synced',
+            err?.message ?? 'Your currency is set locally. We could not reach Supabase to sync it across devices.',
+          );
+        },
+      },
+    );
   };
 
   const confirmSignOut = () =>
@@ -43,10 +105,9 @@ export default function Settings() {
     ]);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: colors.surface }}>
       <TopBar leading={<Avatar name={profile.data?.display_name ?? undefined} />} title="Settings" subtitle="Your Vault" />
       <Screen contentStyle={styles.content}>
-        {/* Profile summary */}
         <Card tone="high" padding={spacing[6]} vault>
           <View style={styles.profileRow}>
             <Avatar name={profile.data?.display_name ?? undefined} size={56} />
@@ -65,20 +126,50 @@ export default function Settings() {
           </View>
         </Card>
 
+        {/* Appearance — new section for theme toggle */}
+        <Section title="Appearance">
+          <Card tone="low" padding={spacing[5]}>
+            <View style={styles.rowBetween}>
+              <View>
+                <Text variant="titleSm" color="onSurface">
+                  Theme
+                </Text>
+                <Text variant="bodySm" color="onSurfaceVariant">
+                  Dark is the default. Light mirrors the Architectural Vault in a premium light palette.
+                </Text>
+              </View>
+            </View>
+            <View style={styles.themeRow}>
+              <ThemeChip
+                label="Dark"
+                icon="dark_mode"
+                active={mode === 'dark'}
+                onPress={() => setMode('dark')}
+              />
+              <ThemeChip
+                label="Light"
+                icon="light_mode"
+                active={mode === 'light'}
+                onPress={() => setMode('light')}
+              />
+            </View>
+          </Card>
+        </Section>
+
         <Section title="Security & Privacy">
           <Card tone="low" padding={0}>
             <Row
-              icon="fingerprint"
-              label={bioType === 'face' ? 'Face ID unlock' : 'Biometric unlock'}
-              hint={bioAvailable ? 'Require biometrics on app launch' : 'Not available on this device'}
+              icon={bioType === 'face' ? 'face' : 'fingerprint'}
+              label={bioType === 'face' ? 'Face ID unlock' : bioType === 'touch' ? 'Touch ID unlock' : 'Biometric unlock'}
+              hint={bioHint}
               control={
                 <Switch
                   value={bioEnabled}
                   onValueChange={toggleBiometric}
                   disabled={!bioAvailable}
-                  trackColor={{ true: palette.primary, false: palette.surfaceContainerHigh }}
-                  thumbColor={palette.surface}
-                  ios_backgroundColor={palette.surfaceContainerHigh}
+                  trackColor={{ true: colors.primary, false: colors.surfaceContainerHigh }}
+                  thumbColor={colors.surface}
+                  ios_backgroundColor={colors.surfaceContainerHigh}
                 />
               }
             />
@@ -89,8 +180,12 @@ export default function Settings() {
 
         <Section title="Preferences">
           <Card tone="low" padding={0}>
-            <Row icon="palette" label="Appearance" hint="Dark" onPress={() => {}} />
-            <Row icon="currency_exchange" label="Currency" hint={profile.data?.currency ?? 'USD'} onPress={() => {}} />
+            <Row
+              icon="currency_exchange"
+              label="Currency"
+              hint={currency}
+              onPress={() => setCurrencyPickerOpen(true)}
+            />
             <Row icon="notifications" label="Notifications" hint="Weekly digest" onPress={() => {}} />
           </Card>
         </Section>
@@ -107,7 +202,35 @@ export default function Settings() {
           Sign out
         </Button>
       </Screen>
+
+      <CurrencyPickerModal
+        visible={currencyPickerOpen}
+        current={currency}
+        onClose={() => setCurrencyPickerOpen(false)}
+        onPick={pickCurrency}
+      />
     </View>
+  );
+}
+
+function ThemeChip({ label, icon, active, onPress }: { label: string; icon: string; active: boolean; onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.themeChip,
+        {
+          backgroundColor: active ? colors.surfaceContainerHighest : colors.surfaceContainer,
+          borderColor: active ? colors.primary : 'transparent',
+        },
+      ]}
+    >
+      <Icon name={icon} size={18} color={active ? 'primary' : 'onSurfaceVariant'} />
+      <Text variant="titleSm" color={active ? 'primary' : 'onSurfaceVariant'}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -126,10 +249,11 @@ function Row({
   onPress?: () => void;
   tone?: Color;
 }) {
-  const Container = onPress ? Pressable : View;
+  const { colors } = useTheme();
+  const Container: any = onPress ? Pressable : View;
   return (
     <Container onPress={onPress} style={styles.row}>
-      <View style={styles.rowTile}>
+      <View style={[styles.rowTile, { backgroundColor: colors.surfaceContainerHighest }]}>
         <Icon name={icon} size={18} color="primary" />
       </View>
       <View style={{ flex: 1 }}>
@@ -151,6 +275,19 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing[6], gap: spacing[6] },
   profileRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[4] },
   membership: { flexDirection: 'row', alignItems: 'center', gap: spacing[1], marginTop: 4 },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  themeRow: { flexDirection: 'row', gap: spacing[2], marginTop: spacing[4] },
+  themeChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing[2],
+    paddingVertical: spacing[3],
+    paddingHorizontal: spacing[4],
+    borderRadius: radius.md,
+    borderWidth: 1,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -159,11 +296,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[4],
   },
   rowTile: {
-    width: 36,
-    height: 36,
+    width: 36, height: 36,
     borderRadius: radius.md,
-    backgroundColor: palette.surfaceContainerHighest,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
 });

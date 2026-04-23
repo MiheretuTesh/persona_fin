@@ -1,5 +1,5 @@
 import { View, Image, StyleSheet } from 'react-native';
-import { palette } from '@/theme';
+import { useColors } from '@/theme';
 import { Text } from './Text';
 
 type Props = {
@@ -15,8 +15,20 @@ function initials(n?: string | null) {
 }
 
 export function Avatar({ name, uri, size = 40 }: Props) {
+  const colors = useColors();
   return (
-    <View style={[styles.wrap, { width: size, height: size, borderRadius: size / 2 }]}>
+    <View
+      style={[
+        styles.wrap,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: colors.surfaceContainerHighest,
+          borderColor: colors.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+        },
+      ]}
+    >
       {uri ? (
         <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2 }} />
       ) : (
@@ -30,11 +42,9 @@ export function Avatar({ name, uri, size = 40 }: Props) {
 
 const styles = StyleSheet.create({
   wrap: {
-    backgroundColor: palette.surfaceContainerHighest,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
   },
 });

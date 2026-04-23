@@ -15,7 +15,9 @@ import {
 import { View } from 'react-native';
 import { queryClient, wireAppStateFocus } from '@/lib/queryClient';
 import { useAuth } from '@/features/auth/store';
-import { palette } from '@/theme';
+import { BiometricLockOverlay } from '@/features/auth/BiometricLockOverlay';
+import { useHydratePreferencesFromProfile } from '@/features/preferences/sync';
+import { ThemeProvider, useTheme } from '@/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -30,7 +32,6 @@ export default function RootLayout() {
   const hydrate = useAuth((s) => s.hydrate);
   const status = useAuth((s) => s.status);
 
-  // Hydrate session once, then wire AppState → focusManager.
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     hydrate().finally(() => setHydrated(true));
@@ -41,44 +42,76 @@ export default function RootLayout() {
     if (fontsLoaded && hydrated) SplashScreen.hideAsync().catch(() => {});
   }, [fontsLoaded, hydrated]);
 
-  if (!fontsLoaded || status === 'unknown') {
-    // Keep the native splash up. Returning a dark view prevents a FOUC white flash.
-    return <View style={{ flex: 1, backgroundColor: palette.surface }} />;
-  }
-
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.surface }}>
-      <SafeAreaProvider>
-        <QueryClientProvider client={queryClient}>
-          <StatusBar style="light" />
-          <AuthGate>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: palette.surface },
-                animation: 'fade',
-              }}
-            >
-              <Stack.Screen name="index" />
-              <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
-              <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
-              <Stack.Screen
-                name="transaction/new"
-                options={{
-                  presentation: 'modal',
-                  animation: 'slide_from_bottom',
-                  contentStyle: { backgroundColor: palette.surfaceContainerLow },
-                }}
-              />
-            </Stack>
-          </AuthGate>
-        </QueryClientProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <ThemeProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <QueryClientProvider client={queryClient}>
+            {!fontsLoaded || status === 'unknown' ? <GateFallback /> : (
+              <AuthenticatedShell />
+            )}
+          </QueryClientProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </ThemeProvider>
   );
 }
 
-/** Routes-as-policy: redirects based on session + current segment. */
+function ThemedStatusBar() {
+  const { mode } = useTheme();
+  return <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />;
+}
+
+/**
+ * Wraps the authenticated tree and boots per-session subsystems: preference
+ * sync from Supabase → local store, and the biometric lock overlay. Kept as
+ * its own component so the hydration hook runs inside a React tree that has
+ * access to QueryClientProvider (for useProfile).
+ */
+function AuthenticatedShell() {
+  useHydratePreferencesFromProfile();
+  return (
+    <>
+      <ThemedStatusBar />
+      <AuthGate>
+        <ThemedStack />
+      </AuthGate>
+      {/* Overlay paints above the Stack when biometric unlock is pending. */}
+      <BiometricLockOverlay />
+    </>
+  );
+}
+
+function GateFallback() {
+  const { colors } = useTheme();
+  return <View style={{ flex: 1, backgroundColor: colors.surface }} />;
+}
+
+function ThemedStack() {
+  const { colors } = useTheme();
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.surface },
+        animation: 'fade',
+      }}
+    >
+      <Stack.Screen name="index" />
+      <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
+      <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+      <Stack.Screen
+        name="transaction/new"
+        options={{
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+          contentStyle: { backgroundColor: colors.surfaceContainerLow },
+        }}
+      />
+    </Stack>
+  );
+}
+
 function AuthGate({ children }: { children: React.ReactNode }) {
   const status = useAuth((s) => s.status);
   const segments = useSegments();

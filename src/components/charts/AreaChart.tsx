@@ -1,23 +1,19 @@
 import { View } from 'react-native';
 import Svg, { Path, Defs, LinearGradient, Stop, Circle, Line } from 'react-native-svg';
-import { palette, type Color } from '@/theme';
+import { useColors } from '@/theme';
+import type { Color } from '@/theme/tokens';
 
 type Props = {
   values: number[];
   width: number;
   height: number;
   color?: Color;
-  /** Render dots at each data point. */
   dots?: boolean;
-  /** Horizontal reference lines (0 → max, count). */
   gridLines?: number;
 };
 
-/**
- * Smooth area chart via Catmull-Rom → Bézier. Fills the area under the curve
- * with a color-to-transparent vertical gradient — per DS §5 "trend lines".
- */
 export function AreaChart({ values, width, height, color = 'primary', dots = true, gridLines = 3 }: Props) {
+  const colors = useColors();
   if (values.length < 2) {
     return <View style={{ width, height }} />;
   }
@@ -33,7 +29,6 @@ export function AreaChart({ values, width, height, color = 'primary', dots = tru
     y: PAD + (1 - (v - min) / range) * (height - PAD * 2),
   }));
 
-  // Catmull-Rom → Bézier conversion for smooth organic curves.
   const path = pts
     .map((p, i, arr) => {
       if (i === 0) return `M${p.x},${p.y}`;
@@ -49,8 +44,8 @@ export function AreaChart({ values, width, height, color = 'primary', dots = tru
     .join(' ');
 
   const area = `${path} L${pts[pts.length - 1]!.x},${height} L${pts[0]!.x},${height} Z`;
-  const stroke = palette[color];
-  const gradId = `area-grad-${color}`;
+  const stroke = colors[color] as string;
+  const gradId = `area-grad-${color}-${colors.mode}`;
 
   return (
     <View style={{ width, height }}>
@@ -67,11 +62,8 @@ export function AreaChart({ values, width, height, color = 'primary', dots = tru
           return (
             <Line
               key={i}
-              x1={0}
-              x2={width}
-              y1={y}
-              y2={y}
-              stroke={palette.outlineVariant}
+              x1={0} x2={width} y1={y} y2={y}
+              stroke={colors.outlineVariant}
               strokeOpacity={0.12}
               strokeWidth={1}
             />
@@ -84,11 +76,10 @@ export function AreaChart({ values, width, height, color = 'primary', dots = tru
         {dots && pts.map((p, i) => (
           <Circle
             key={i}
-            cx={p.x}
-            cy={p.y}
+            cx={p.x} cy={p.y}
             r={i === pts.length - 1 ? 5 : 0}
             fill={stroke}
-            stroke={palette.surface}
+            stroke={colors.surface}
             strokeWidth={3}
           />
         ))}

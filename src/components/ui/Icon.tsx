@@ -1,11 +1,8 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { palette, type Color } from '@/theme';
+import { useColors } from '@/theme';
+import type { Color } from '@/theme/tokens';
 import { useMemo } from 'react';
 
-// The Stitch design calls out "Material Symbols Outlined" icon names. Those
-// names map cleanly onto MaterialIcons (which ships with Expo via
-// @expo/vector-icons). A few Symbols names use snake_case vs. the Icons set's
-// dashed names — we normalize here.
 const nameAliases: Record<string, keyof typeof MaterialIcons.glyphMap> = {
   account_balance_wallet: 'account-balance-wallet',
   shopping_bag: 'shopping-bag',
@@ -36,13 +33,15 @@ type Props = {
 };
 
 export function Icon({ name, size = 24, color = 'onSurface' }: Props) {
+  const colors = useColors();
   const resolved = useMemo(() => {
     const aliased = nameAliases[name];
     if (aliased) return aliased;
-    // Fall back to the raw name (with underscores → dashes) if not explicitly aliased.
     const dashed = name.replace(/_/g, '-') as keyof typeof MaterialIcons.glyphMap;
-    return MaterialIcons.glyphMap[dashed] !== undefined ? dashed : ('label' as keyof typeof MaterialIcons.glyphMap);
+    return MaterialIcons.glyphMap[dashed] !== undefined
+      ? dashed
+      : ('label' as keyof typeof MaterialIcons.glyphMap);
   }, [name]);
 
-  return <MaterialIcons name={resolved} size={size} color={palette[color]} />;
+  return <MaterialIcons name={resolved} size={size} color={colors[color] as string} />;
 }

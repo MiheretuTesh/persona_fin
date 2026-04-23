@@ -1,5 +1,6 @@
 import { View, StyleSheet } from 'react-native';
-import { palette, radius, spacing } from '@/theme';
+import { useColors } from '@/theme';
+import { radius, spacing } from '@/theme/tokens';
 import { Icon, IconName } from './Icon';
 import { Text } from './Text';
 
@@ -10,9 +11,10 @@ type Props = {
 };
 
 export function EmptyState({ icon, title, body }: Props) {
+  const colors = useColors();
   return (
     <View style={styles.wrap}>
-      <View style={styles.orb}>
+      <View style={[styles.orb, { backgroundColor: colors.surfaceContainerHigh }]}>
         <Icon name={icon} size={28} color="primary" />
       </View>
       <Text variant="titleMd" color="onSurface" center>
@@ -30,11 +32,8 @@ export function EmptyState({ icon, title, body }: Props) {
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', gap: spacing[3], padding: spacing[8] },
   orb: {
-    width: 64,
-    height: 64,
+    width: 64, height: 64,
     borderRadius: radius.pill,
-    backgroundColor: palette.surfaceContainerHigh,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
 });

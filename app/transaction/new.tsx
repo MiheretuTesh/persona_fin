@@ -16,11 +16,15 @@ import { useRouter } from 'expo-router';
 import { format } from 'date-fns';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text, Input, Button, Chip, Card, Icon, IconName } from '@/components/ui';
-import { palette, radius, spacing, type Color } from '@/theme';
+import { useTheme } from '@/theme';
+import { radius, spacing } from '@/theme/tokens';
+import type { Color } from '@/theme/tokens';
 import { useWallets } from '@/features/wallets/queries';
 import { useCategories } from '@/features/categories/queries';
 import { useCreateTransaction } from '@/features/transactions/mutations';
 import { useCreateCategory } from '@/features/categories/mutations';
+import { useCurrency } from '@/features/preferences/store';
+import { currencySymbol } from '@/lib/formatters';
 import type { TransactionKind } from '@/types/database';
 
 const schema = z.object({
@@ -43,8 +47,10 @@ const CUSTOM_ICON_CHOICES: IconName[] = [
 ];
 
 export default function NewTransaction() {
+  const { colors } = useTheme();
   const router = useRouter();
   const wallets = useWallets();
+  const currency = useCurrency();
   const categories = useCategories();
   const create = useCreateTransaction();
   const createCategory = useCreateCategory();
@@ -128,11 +134,11 @@ export default function NewTransaction() {
   const noCategoriesAtAll = !categories.isLoading && (categories.data?.length ?? 0) === 0;
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: palette.surfaceContainerLow }}>
+    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: colors.surfaceContainerLow }}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {/* Grabber + header */}
         <View style={styles.header}>
-          <View style={styles.grabber} />
+          <View style={[styles.grabber, { backgroundColor: colors.surfaceContainerHighest }]} />
           <View style={styles.headerRow}>
             <Pressable onPress={() => router.back()} hitSlop={8}>
               <Icon name="close" size={22} color="onSurface" />
@@ -150,7 +156,7 @@ export default function NewTransaction() {
             control={control}
             name="kind"
             render={({ field }) => (
-              <View style={styles.segmented}>
+              <View style={[styles.segmented, { backgroundColor: colors.surfaceContainerLow }]}>
                 <SegBtn
                   label="Expense"
                   icon="remove_circle"
@@ -197,11 +203,11 @@ export default function NewTransaction() {
                 <View>
                   <View style={styles.amountRow}>
                     <Text variant="displayLg" color="onSurface" style={{ marginRight: 8 }}>
-                      $
+                      {currencySymbol(currency)}
                     </Text>
                     <TextInput
                       placeholder="0.00"
-                      placeholderTextColor={palette.onSurfaceVariant}
+                      placeholderTextColor={colors.onSurfaceVariant}
                       keyboardType="decimal-pad"
                       returnKeyType="done"
                       value={amountText}
@@ -212,8 +218,9 @@ export default function NewTransaction() {
                         field.onChange(cleaned === '' ? undefined : Number(cleaned));
                       }}
                       onBlur={field.onBlur}
-                      selectionColor={palette.primary}
-                      style={styles.amountInput}
+                      selectionColor={colors.primary}
+                      cursorColor={colors.primary}
+                      style={[styles.amountInput, { color: colors.onSurface }]}
                     />
                   </View>
                   {fieldState.error?.message && (
@@ -291,7 +298,8 @@ export default function NewTransaction() {
                         onPress={() => setNewCategoryIcon(name)}
                         style={[
                           styles.iconChoice,
-                          newCategoryIcon === name && { backgroundColor: palette.surfaceContainerHighest, borderColor: palette.primary },
+                          { backgroundColor: newCategoryIcon === name ? colors.surfaceContainerHighest : colors.surfaceContainer },
+                          newCategoryIcon === name && { borderColor: colors.primary },
                         ]}
                       >
                         <Icon name={name} size={18} color={newCategoryIcon === name ? 'primary' : 'onSurfaceVariant'} />
@@ -333,9 +341,12 @@ export default function NewTransaction() {
                     <Pressable
                       key={c.id}
                       onPress={() => setValue('categoryId', c.id, { shouldValidate: true })}
-                      style={[styles.categoryTile, selected && { backgroundColor: palette.surfaceContainerHighest }]}
+                      style={[
+                        styles.categoryTile,
+                        { backgroundColor: selected ? colors.surfaceContainerHighest : colors.surfaceContainerLow },
+                      ]}
                     >
-                      <View style={styles.categoryIcon}>
+                      <View style={[styles.categoryIcon, { backgroundColor: colors.surfaceContainerHighest }]}>
                         <Icon name={c.icon} size={20} color={tone} />
                       </View>
                       <Text variant="labelMd" color={selected ? 'primary' : 'onSurfaceVariant'} center numberOfLines={1}>
@@ -412,8 +423,9 @@ export default function NewTransaction() {
 }
 
 function SegBtn({ label, icon, color, active, onPress }: { label: string; icon: IconName; color: Color; active: boolean; onPress: () => void }) {
+  const { colors } = useTheme();
   return (
-    <Pressable onPress={onPress} style={[styles.segBtn, active && { backgroundColor: palette.surfaceContainerHighest }]}>
+    <Pressable onPress={onPress} style={[styles.segBtn, active && { backgroundColor: colors.surfaceContainerHighest }]}>
       <Icon name={icon} size={16} color={active ? color : 'onSurfaceVariant'} />
       <Text variant="labelMd" color={active ? color : 'onSurfaceVariant'}>
         {label}
@@ -428,7 +440,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: palette.surfaceContainerHighest,
     alignSelf: 'center',
     marginBottom: spacing[4],
   },
@@ -436,7 +447,6 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: spacing[6], paddingBottom: spacing[12], gap: spacing[6] },
   segmented: {
     flexDirection: 'row',
-    backgroundColor: palette.surfaceContainerLow,
     padding: spacing[1],
     borderRadius: radius.lg,
     gap: spacing[1],
@@ -453,7 +463,6 @@ const styles = StyleSheet.create({
   amountRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: spacing[2] },
   amountInput: {
     flex: 1,
-    color: palette.onSurface,
     fontFamily: 'Manrope_700Bold',
     fontSize: 40,
     lineHeight: 48,
@@ -480,7 +489,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: 'center',
     gap: spacing[2],
-    backgroundColor: palette.surfaceContainerLow,
   },
   categoryIcon: {
     width: 40,
@@ -488,7 +496,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: palette.surfaceContainerHighest,
   },
   iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   iconChoice: {
@@ -497,7 +504,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: palette.surfaceContainer,
     borderWidth: 1,
     borderColor: 'transparent',
   },

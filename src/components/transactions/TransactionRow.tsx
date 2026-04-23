@@ -1,5 +1,6 @@
 import { Pressable, View, StyleSheet } from 'react-native';
-import { palette, spacing, radius } from '@/theme';
+import { useColors } from '@/theme';
+import { spacing, radius } from '@/theme/tokens';
 import { Text } from '@/components/ui/Text';
 import { Icon } from '@/components/ui/Icon';
 import { formatDate, formatSignedAmount } from '@/lib/formatters';
@@ -12,19 +13,21 @@ type Props = {
   onPress?: () => void;
 };
 
-/**
- * A single list row — icon tile, merchant/category/date stack, signed amount.
- * The DS forbids dividers; vertical rhythm is controlled with 1rem gaps at the
- * list level, and a subtle surface shift on press.
- */
 export function TransactionRow({ transaction, category, currency = 'USD', onPress }: Props) {
+  const colors = useColors();
   const isIncome = transaction.kind === 'income';
   const amountColor = isIncome ? 'secondary' : transaction.kind === 'expense' ? 'tertiary' : 'onSurface';
 
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.row, pressed && { backgroundColor: palette.surfaceContainerLow }]}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        pressed && { backgroundColor: colors.surfaceContainerLow },
+      ]}
+    >
       <View style={styles.left}>
-        <View style={styles.iconTile}>
+        <View style={[styles.iconTile, { backgroundColor: colors.surfaceContainerHighest }]}>
           <Icon name={category?.icon ?? 'label'} size={22} color="primary" />
         </View>
         <View style={styles.textCol}>
@@ -54,12 +57,9 @@ const styles = StyleSheet.create({
   },
   left: { flexDirection: 'row', alignItems: 'center', gap: spacing[4], flex: 1 },
   iconTile: {
-    width: 44,
-    height: 44,
+    width: 44, height: 44,
     borderRadius: radius.lg,
-    backgroundColor: palette.surfaceContainerHighest,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
   textCol: { flex: 1, gap: 2 },
 });

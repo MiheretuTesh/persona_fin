@@ -3,7 +3,8 @@ import { View, Pressable, StyleSheet, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { palette, spacing, radius, blur } from '@/theme';
+import { useTheme } from '@/theme';
+import { spacing, radius, blur } from '@/theme/tokens';
 import { Text } from '@/components/ui/Text';
 import { Icon, IconName } from '@/components/ui/Icon';
 
@@ -18,11 +19,12 @@ const TABS: TabDef[] = [
 ];
 
 export default function TabsLayout() {
+  const { colors } = useTheme();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        sceneStyle: { backgroundColor: palette.surface },
+        sceneStyle: { backgroundColor: colors.surface },
       }}
       tabBar={(props) => <VaultTabBar {...props} />}
     >
@@ -33,20 +35,19 @@ export default function TabsLayout() {
   );
 }
 
-/**
- * Custom glassmorphism bar matching the Stitch design: floating rounded-top bar,
- * selected tab has a surface_container_highest pill highlight, Add sits as a
- * centered floating cyan orb that opens the transaction/new modal.
- */
 function VaultTabBar({
   state,
   navigation,
 }: {
   state: { index: number; routes: { name: string; key: string }[] };
-  navigation: { navigate: (name: string) => void; emit: (event: any) => any };
+  navigation: { navigate: (name: string) => void };
 }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors, mode } = useTheme();
+
+  const barBg = mode === 'dark' ? 'rgba(8,14,26,0.65)' : 'rgba(246,248,255,0.75)';
+  const hairline = mode === 'dark' ? 'rgba(66,72,86,0.15)' : 'rgba(111,117,133,0.15)';
 
   const onTab = (name: string, isFocused: boolean) => {
     Haptics.selectionAsync();
@@ -58,28 +59,38 @@ function VaultTabBar({
     router.push('/transaction/new');
   };
 
-  // Render order: [Vault, History, <ADD>, Budget, Insights]. Settings is NOT
-  // on the bar per DS — it's reached via the top bar avatar.
   const primaryTabs = TABS.filter((t) => t.name !== 'settings');
+  const currentRoute = state.routes[state.index]?.name;
 
   return (
     <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, spacing[2]) }]}>
-      <BlurView tint="dark" intensity={Platform.OS === 'ios' ? blur.medium : blur.strong} style={StyleSheet.absoluteFill} />
-      <View style={styles.bg} />
-      <View style={styles.hairline} />
+      <BlurView
+        tint={mode === 'dark' ? 'dark' : 'light'}
+        intensity={Platform.OS === 'ios' ? blur.medium : blur.strong}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: barBg }]} />
+      <View style={[styles.hairline, { backgroundColor: hairline }]} />
       <View style={styles.row}>
         {primaryTabs.slice(0, 2).map((t) => (
           <TabButton
             key={t.name}
             def={t}
-            focused={state.routes[state.index]?.name === t.name}
-            onPress={() => onTab(t.name, state.routes[state.index]?.name === t.name)}
+            focused={currentRoute === t.name}
+            onPress={() => onTab(t.name, currentRoute === t.name)}
           />
         ))}
 
-        {/* Floating add */}
         <Pressable onPress={onAdd} style={styles.fab} accessibilityLabel="Add transaction">
-          <View style={styles.fabInner}>
+          <View
+            style={[
+              styles.fabInner,
+              {
+                backgroundColor: colors.primary,
+                shadowColor: colors.primary,
+              },
+            ]}
+          >
             <Icon name="add" size={28} color="onPrimary" />
           </View>
           <Text variant="labelSm" color="onSurfaceVariant" style={{ marginTop: 4 }}>
@@ -91,8 +102,8 @@ function VaultTabBar({
           <TabButton
             key={t.name}
             def={t}
-            focused={state.routes[state.index]?.name === t.name}
-            onPress={() => onTab(t.name, state.routes[state.index]?.name === t.name)}
+            focused={currentRoute === t.name}
+            onPress={() => onTab(t.name, currentRoute === t.name)}
           />
         ))}
       </View>
@@ -101,9 +112,15 @@ function VaultTabBar({
 }
 
 function TabButton({ def, focused, onPress }: { def: TabDef; focused: boolean; onPress: () => void }) {
+  const { colors } = useTheme();
   return (
     <Pressable onPress={onPress} style={styles.tab} accessibilityRole="tab" accessibilityState={{ selected: focused }}>
-      <View style={[styles.tabInner, focused && { backgroundColor: palette.surfaceContainerHighest }]}>
+      <View
+        style={[
+          styles.tabInner,
+          focused && { backgroundColor: colors.surfaceContainerHighest },
+        ]}
+      >
         <Icon name={def.icon} size={22} color={focused ? 'primary' : 'onSurfaceVariant'} />
       </View>
       <Text variant="labelSm" color={focused ? 'primary' : 'onSurfaceVariant'} style={{ marginTop: 4 }}>
@@ -116,23 +133,17 @@ function TabButton({ def, focused, onPress }: { def: TabDef; focused: boolean; o
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
+    left: 0, right: 0, bottom: 0,
     paddingTop: spacing[2],
     paddingHorizontal: spacing[3],
     overflow: 'hidden',
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
   },
-  bg: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(8,14,26,0.65)' },
   hairline: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
+    top: 0, left: 0, right: 0,
     height: 1,
-    backgroundColor: 'rgba(66,72,86,0.15)',
   },
   row: {
     flexDirection: 'row',
@@ -146,19 +157,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[2],
     borderRadius: radius.md,
   },
-  fab: {
-    alignItems: 'center',
-    marginHorizontal: spacing[2],
-    paddingTop: spacing[1],
-  },
+  fab: { alignItems: 'center', marginHorizontal: spacing[2], paddingTop: spacing[1] },
   fabInner: {
-    width: 52,
-    height: 52,
+    width: 52, height: 52,
     borderRadius: radius.lg,
-    backgroundColor: palette.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: palette.primary,
+    alignItems: 'center', justifyContent: 'center',
     shadowOpacity: 0.4,
     shadowOffset: { width: 0, height: 8 },
     shadowRadius: 16,

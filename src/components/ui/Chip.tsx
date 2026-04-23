@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { Pressable, View, StyleSheet, ViewStyle } from 'react-native';
-import { palette, radius, spacing } from '@/theme';
+import { useColors } from '@/theme';
+import { radius, spacing } from '@/theme/tokens';
 import { Text } from './Text';
 import { Icon, IconName } from './Icon';
 
@@ -13,25 +14,31 @@ type Props = {
   style?: ViewStyle;
 };
 
-const toneBg = {
-  neutral: palette.surfaceContainer,
-  primary: 'rgba(160,228,254,0.12)',
-  secondary: 'rgba(78,222,163,0.12)',
-  tertiary: 'rgba(255,155,148,0.12)',
-} as const;
-
-const toneText = {
-  neutral: 'onSurfaceVariant',
-  primary: 'primary',
-  secondary: 'secondary',
-  tertiary: 'tertiary',
-} as const;
-
-/** Rounded pill used for metadata (month filter, category tag, trend indicator). */
 export function Chip({ label, icon, tone = 'neutral', selected, onPress, style }: Props) {
-  const Comp = onPress ? Pressable : View;
+  const colors = useColors();
+  const toneBg = {
+    neutral: colors.surfaceContainer,
+    primary: colors.mode === 'dark' ? 'rgba(160,228,254,0.12)' : 'rgba(0,67,84,0.08)',
+    secondary: colors.mode === 'dark' ? 'rgba(78,222,163,0.12)' : 'rgba(0,108,73,0.08)',
+    tertiary: colors.mode === 'dark' ? 'rgba(255,155,148,0.12)' : 'rgba(192,48,43,0.08)',
+  } as const;
+  const toneText = {
+    neutral: 'onSurfaceVariant',
+    primary: 'primary',
+    secondary: 'secondary',
+    tertiary: 'tertiary',
+  } as const;
+
+  const Comp: any = onPress ? Pressable : View;
   return (
-    <Comp onPress={onPress} style={[styles.base, { backgroundColor: selected ? palette.surfaceContainerHighest : toneBg[tone] }, style]}>
+    <Comp
+      onPress={onPress}
+      style={[
+        styles.base,
+        { backgroundColor: selected ? colors.surfaceContainerHighest : toneBg[tone] },
+        style,
+      ]}
+    >
       {icon && <Icon name={icon} size={14} color={toneText[tone]} />}
       <Text variant="labelSm" color={toneText[tone]}>
         {label}

@@ -3,18 +3,21 @@ import { View, StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { Screen, TopBar, Avatar, Input, Chip, Text, EmptyState, Card } from '@/components/ui';
 import { TransactionRow } from '@/components/transactions/TransactionRow';
-import { palette, spacing } from '@/theme';
+import { useTheme } from '@/theme';
+import { spacing } from '@/theme/tokens';
 import { useTransactions } from '@/features/transactions/queries';
 import { useCategoryMap } from '@/features/categories/queries';
 import { useProfile } from '@/features/profile/queries';
+import { useCurrency } from '@/features/preferences/store';
 
 type Filter = 'all' | 'income' | 'expense';
 
 export default function History() {
+  const { colors } = useTheme();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const profile = useProfile();
-  const currency = profile.data?.currency ?? 'USD';
+  const currency = useCurrency();
   const txns = useTransactions();
   const categories = useCategoryMap();
 
@@ -34,7 +37,7 @@ export default function History() {
   }, [txns.data, categories.byId, filter, query]);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: colors.surface }}>
       <TopBar leading={<Avatar name={profile.data?.display_name ?? undefined} />} title="Transaction History" subtitle="Your ledger" />
       <Screen
         contentStyle={styles.content}

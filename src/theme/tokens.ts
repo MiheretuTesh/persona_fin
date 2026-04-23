@@ -1,20 +1,57 @@
 /**
- * Architectural Vault — design tokens.
+ * Architectural Vault — design tokens (dark + light).
  *
- * This file is the single source of truth for color, type, spacing, radius
- * and shadow. It is derived directly from the Stitch "Architectural Vault"
- * design system (dark, vibrant variant) and the PRD §5 palette.
- *
- * Rules encoded here (do not bypass without reason):
- *   — No 1px borders for sectioning; define boundaries with background shifts.
- *   — Depth is created by surface tone stacking, not heavy drop shadows.
- *   — Labels are UPPERCASE with +0.05em tracking.
- *   — Manrope everywhere; Inter is NOT part of this dark system.
- *   — Primary cyan is a laser pointer — sparing, for the most important action.
+ * Two palettes, one shape. `palette` is the legacy dark-only export kept for
+ * backwards compatibility; new code should use `useTheme()` from
+ * `ThemeProvider.tsx` to read the live palette for the current mode.
  */
 
-export const palette = {
-  // base surfaces (deepest → highest) — the "carved volume" stack
+export type ThemeMode = 'dark' | 'light';
+
+/**
+ * Explicit shape for a palette. Both `darkColors` and `lightColors` conform to
+ * this, so `colorsForMode()` can return either without TypeScript complaining
+ * about literal-type mismatches between the two.
+ */
+export type Colors = {
+  mode: ThemeMode;
+  surface: string;
+  surfaceContainerLowest: string;
+  surfaceContainerLow: string;
+  surfaceContainer: string;
+  surfaceContainerHigh: string;
+  surfaceContainerHighest: string;
+  surfaceBright: string;
+  surfaceDim: string;
+  onSurface: string;
+  onSurfaceVariant: string;
+  primary: string;
+  primaryContainer: string;
+  primaryDim: string;
+  onPrimary: string;
+  onPrimaryContainer: string;
+  secondary: string;
+  secondaryContainer: string;
+  onSecondary: string;
+  onSecondaryContainer: string;
+  tertiary: string;
+  tertiaryContainer: string;
+  onTertiary: string;
+  onTertiaryContainer: string;
+  outline: string;
+  outlineVariant: string;
+  error: string;
+  errorContainer: string;
+  onError: string;
+  heroGradient: readonly [string, string];
+  primaryGradient: readonly [string, string];
+  scrimGradient: readonly [string, string];
+};
+
+/** Dark mode — the primary design intent, per PRD §5 and Stitch "Architectural Vault". */
+export const darkColors: Colors = {
+  mode: 'dark',
+
   surface: '#080e1a',
   surfaceContainerLowest: '#000000',
   surfaceContainerLow: '#0d1321',
@@ -24,82 +61,103 @@ export const palette = {
   surfaceBright: '#232c3f',
   surfaceDim: '#080e1a',
 
-  // typography on surface
   onSurface: '#e6ebfc',
   onSurfaceVariant: '#a5abbb',
 
-  // primary — cyan teal (the laser pointer)
   primary: '#a0e4fe',
   primaryContainer: '#66aac2',
   primaryDim: '#92d6ef',
-  onPrimary: '#005468',
-  onPrimaryContainer: '#002732',
+  onPrimary: '#000000',
+  onPrimaryContainer: '#ffffff',
 
-  // secondary — growth / income
   secondary: '#4edea3',
   secondaryContainer: '#006689',
   onSecondary: '#003824',
   onSecondaryContainer: '#f1f9ff',
 
-  // tertiary — alert / expense
   tertiary: '#ff9b94',
   tertiaryContainer: '#410002',
   onTertiary: '#ffffff',
   onTertiaryContainer: '#ffb4ab',
 
-  // system
   outline: '#707585',
   outlineVariant: '#424856',
   error: '#ff716c',
   errorContainer: '#9f0519',
   onError: '#490006',
 
-  // hero balance card gradient
-  heroGradient: ['#004354', '#005c72'] as const, // 135°
-  primaryGradient: ['#a0e4fe', '#66aac2'] as const,
-  scrimGradient: ['rgba(8,14,26,0.0)', 'rgba(8,14,26,0.85)'] as const,
-} as const;
+  heroGradient: ['#004354', '#005c72'],
+  primaryGradient: ['#a0e4fe', '#66aac2'],
+  scrimGradient: ['rgba(8,14,26,0.0)', 'rgba(8,14,26,0.85)'],
+};
 
-export type Color = keyof typeof palette;
+/** Light mode — the Financial Atelier variant from the Stitch project. */
+export const lightColors: Colors = {
+  mode: 'light',
 
-/** Opacity overlays applied atop a named color — kept tiny to match the DS. */
+  surface: '#f6f8ff',
+  surfaceContainerLowest: '#ffffff',
+  surfaceContainerLow: '#eff3ff',
+  surfaceContainer: '#e7eeff',
+  surfaceContainerHigh: '#dee8ff',
+  surfaceContainerHighest: '#d8e3fb',
+  surfaceBright: '#ffffff',
+  surfaceDim: '#cfdaf2',
+
+  onSurface: '#111c2d',
+  onSurfaceVariant: '#4a5568',
+
+  primary: '#004354',
+  primaryContainer: '#005c72',
+  primaryDim: '#18667d',
+  onPrimary: '#ffffff',
+  onPrimaryContainer: '#ffffff',
+
+  secondary: '#006c49',
+  secondaryContainer: '#6cf8bb',
+  onSecondary: '#ffffff',
+  onSecondaryContainer: '#00281b',
+
+  tertiary: '#c0302b',
+  tertiaryContainer: '#ffdad6',
+  onTertiary: '#ffffff',
+  onTertiaryContainer: '#5a0007',
+
+  outline: '#70787d',
+  outlineVariant: '#bfc8cc',
+  error: '#ba1a1a',
+  errorContainer: '#ffdad6',
+  onError: '#ffffff',
+
+  // Hero keeps the signature deep-teal gradient in light mode too — it becomes
+  // a "contrast island" against the lighter background, which is what premium
+  // fintech products (Monzo, Revolut, Copilot) do.
+  heroGradient: ['#004354', '#005c72'],
+  primaryGradient: ['#004354', '#005c72'],
+  scrimGradient: ['rgba(246,248,255,0.0)', 'rgba(246,248,255,0.85)'],
+};
+
+export type Color = Exclude<keyof Colors, 'mode' | 'heroGradient' | 'primaryGradient' | 'scrimGradient'>;
+
+/** Legacy / dark-only export. New code should use `useTheme().colors`. */
+export const palette = darkColors;
+
 export const alpha = {
-  ghostBorder: 0.15, // outlineVariant at 15% — "felt, not seen"
+  ghostBorder: 0.15,
   glass: 0.6,
   pressed: 0.08,
   hairline: 0.1,
 } as const;
 
-/** 4-pt rhythm. Usage: spacing[6] === 24. Mirrors the Stitch scale. */
 export const spacing = {
-  0: 0,
-  1: 4,
-  1.5: 6,
-  2: 8,
-  3: 12,
-  4: 16,
-  5: 20,
-  6: 24,
-  8: 32,
-  10: 40,
-  12: 48,
-  16: 64,
-  20: 80,
-  24: 96,
+  0: 0, 1: 4, 1.5: 6, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24,
+  8: 32, 10: 40, 12: 48, 16: 64, 20: 80, 24: 96,
 } as const;
 
-/** Corner radii — strictly adhere to the ROUND_EIGHT scale. */
 export const radius = {
-  xs: 4,
-  sm: 8, // DS "DEFAULT"
-  md: 12,
-  lg: 16,
-  xl: 24,
-  '2xl': 32,
-  pill: 9999,
+  xs: 4, sm: 8, md: 12, lg: 16, xl: 24, '2xl': 32, pill: 9999,
 } as const;
 
-/** Typography. All Manrope for this dark system (per DS). */
 export const type = {
   displayLg: { fontFamily: 'Manrope_800ExtraBold', fontSize: 56, lineHeight: 60, letterSpacing: -1.1 },
   displayMd: { fontFamily: 'Manrope_800ExtraBold', fontSize: 44, lineHeight: 48, letterSpacing: -0.9 },
@@ -121,37 +179,23 @@ export const type = {
 
 export type TypeToken = keyof typeof type;
 
-/**
- * Shadows — ambient luminance, not drop shadows. The second "shadow" is a
- * rim-light effect using the primary tone (iOS only, RN Android clamps to one).
- */
 export const shadow = {
   floating: {
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.4,
-    shadowRadius: 32,
-    elevation: 12,
+    shadowColor: '#000000', shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.4, shadowRadius: 32, elevation: 12,
   },
   lifted: {
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 6,
+    shadowColor: '#000000', shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.3, shadowRadius: 20, elevation: 6,
   },
   rim: {
-    shadowColor: '#a0e4fe',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 24,
-    elevation: 0,
+    shadowColor: '#a0e4fe', shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.25, shadowRadius: 24, elevation: 0,
   },
 } as const;
 
-/** Blur amounts for glassmorphism. expo-blur `intensity` is 0-100. */
-export const blur = {
-  subtle: 20,
-  medium: 40,
-  strong: 60,
-} as const;
+export const blur = { subtle: 20, medium: 40, strong: 60 } as const;
+
+export function colorsForMode(mode: ThemeMode): Colors {
+  return mode === 'light' ? lightColors : darkColors;
+}

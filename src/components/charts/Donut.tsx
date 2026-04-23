@@ -1,6 +1,7 @@
 import { View } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
-import { palette, type Color } from '@/theme';
+import { useColors } from '@/theme';
+import type { Color } from '@/theme/tokens';
 import { Text } from '@/components/ui/Text';
 
 export type DonutSlice = {
@@ -17,29 +18,24 @@ type Props = {
   centerBottom?: string;
 };
 
-/**
- * Donut chart — stroked Circle segments with rounded caps, matching the DS
- * call-out: 12px stroke, full rounded caps, no fill. Center copy stacks two
- * lines (amount + label) in Manrope.
- */
 export function Donut({ slices, size = 160, strokeWidth = 14, centerTop, centerBottom }: Props) {
+  const colors = useColors();
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const total = slices.reduce((s, sl) => s + Math.max(0, sl.value), 0) || 1;
 
   let accumulated = 0;
-  const GAP = 2; // visual separator between slices in degrees
+  const GAP = 2;
 
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <Svg width={size} height={size}>
         <G rotation={-90} origin={`${size / 2}, ${size / 2}`}>
-          {/* Track */}
           <Circle
             cx={size / 2}
             cy={size / 2}
             r={radius}
-            stroke={palette.surfaceContainerHigh}
+            stroke={colors.surfaceContainerHigh}
             strokeWidth={strokeWidth}
             fill="none"
           />
@@ -55,7 +51,7 @@ export function Donut({ slices, size = 160, strokeWidth = 14, centerTop, centerB
                 cx={size / 2}
                 cy={size / 2}
                 r={radius}
-                stroke={palette[s.color]}
+                stroke={colors[s.color] as string}
                 strokeWidth={strokeWidth}
                 strokeLinecap="round"
                 fill="none"

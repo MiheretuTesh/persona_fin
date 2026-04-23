@@ -4,12 +4,14 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'expo-router';
 import { Screen, Text, Input, Button, Icon } from '@/components/ui';
-import { palette, radius, spacing } from '@/theme';
+import { useTheme } from '@/theme';
+import { radius, spacing } from '@/theme/tokens';
 import { signInSchema, SignInValues } from '@/features/auth/schemas';
 import { useAuth } from '@/features/auth/store';
 import { biometricsAvailable, getBiometricType, promptBiometric, isBiometricEnabled } from '@/features/auth/biometrics';
 
 export default function SignIn() {
+  const { colors } = useTheme();
   const signIn = useAuth((s) => s.signIn);
   const sendPasswordReset = useAuth((s) => s.sendPasswordReset);
   const [bioType, setBioType] = useState<'face' | 'touch' | 'none'>('none');
@@ -50,7 +52,7 @@ export default function SignIn() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Screen topInset={spacing[20]} bottomInset={spacing[10]}>
         <View style={styles.hero}>
-          <View style={styles.badge}>
+          <View style={[styles.badge, { backgroundColor: colors.surfaceContainerLow }]}>
             <Icon name="lock" size={18} color="primary" />
             <Text variant="labelSm" color="primary">
               Secured · End-to-end
@@ -168,7 +170,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[3],
     paddingVertical: spacing[1.5],
     borderRadius: radius.pill,
-    backgroundColor: palette.surfaceContainerLow,
     alignSelf: 'flex-start',
   },
   form: { paddingHorizontal: spacing[6], gap: spacing[4] },

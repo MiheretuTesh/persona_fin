@@ -1,5 +1,32 @@
 import { format, isToday, isYesterday, differenceInDays } from 'date-fns';
 
+/**
+ * Returns the display symbol for any ISO 4217 currency code — "$", "€", "£",
+ * or the ISO code itself when there's no canonical glyph (e.g. "ETB", "KES").
+ * Cached because `Intl.NumberFormat` is allocation-heavy on Hermes.
+ */
+const symbolCache = new Map<string, string>();
+export function currencySymbol(currency: string): string {
+  const code = (currency || 'USD').toUpperCase();
+  const hit = symbolCache.get(code);
+  if (hit) return hit;
+  try {
+    const sample = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: code,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(0);
+    // Strip digits / grouping / spaces — what's left is the symbol or ISO code.
+    const symbol = sample.replace(/[\d,. \s]/g, '').trim() || code;
+    symbolCache.set(code, symbol);
+    return symbol;
+  } catch {
+    symbolCache.set(code, code);
+    return code;
+  }
+}
+
 /** Currency — always show 2 decimals, grouped, with currency symbol. */
 export function formatCurrency(amount: number, currency = 'USD'): string {
   try {

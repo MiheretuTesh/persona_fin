@@ -1,8 +1,18 @@
 import { ReactNode, useRef } from 'react';
-import { Pressable, View, ActivityIndicator, StyleSheet, ViewStyle, GestureResponderEvent, Animated, Easing } from 'react-native';
+import {
+  Pressable,
+  View,
+  ActivityIndicator,
+  StyleSheet,
+  ViewStyle,
+  GestureResponderEvent,
+  Animated,
+  Easing,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { palette, radius, spacing, type } from '@/theme';
+import { useColors } from '@/theme';
+import { radius, spacing } from '@/theme/tokens';
 import { Text } from './Text';
 import { Icon, IconName } from './Icon';
 
@@ -23,13 +33,6 @@ type Props = {
   style?: ViewStyle;
 };
 
-/**
- * Primary: gradient-filled cyan CTA. Secondary: submerged (surfaceContainerHigh
- * + primary text). Ghost: no background. Danger: error-surface filled.
- *
- * All press states use a 96% scale-down and an optional haptic — matches the
- * Stitch active:scale-95 duration-200 motif.
- */
 export function Button({
   children,
   onPress,
@@ -43,6 +46,7 @@ export function Button({
   haptic = 'light',
   style,
 }: Props) {
+  const colors = useColors();
   const scale = useRef(new Animated.Value(1)).current;
 
   const spring = (to: number) =>
@@ -56,25 +60,31 @@ export function Button({
   const handlePress = (e: GestureResponderEvent) => {
     if (disabled || loading) return;
     if (haptic !== 'none') {
-      const style =
-        haptic === 'success'
-          ? Haptics.NotificationFeedbackType.Success
-          : haptic === 'medium'
-            ? Haptics.ImpactFeedbackStyle.Medium
-            : Haptics.ImpactFeedbackStyle.Light;
-      if (haptic === 'success') Haptics.notificationAsync(style as Haptics.NotificationFeedbackType);
-      else Haptics.impactAsync(style as Haptics.ImpactFeedbackStyle);
+      if (haptic === 'success') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else if (haptic === 'medium') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      } else {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
     }
     onPress?.(e);
   };
 
   const height = size === 'lg' ? 56 : 48;
-  const textColor = variant === 'primary' ? 'onPrimary' : variant === 'danger' ? 'onError' : variant === 'secondary' ? 'primary' : 'onSurface';
+  const textColor =
+    variant === 'primary'
+      ? 'onPrimary'
+      : variant === 'danger'
+        ? 'onError'
+        : variant === 'secondary'
+          ? 'primary'
+          : 'onSurface';
 
   const body = (
     <View style={[styles.row, { opacity: disabled ? 0.5 : 1 }]}>
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? palette.onPrimary : palette.primary} />
+        <ActivityIndicator color={variant === 'primary' ? colors.onPrimary : colors.primary} />
       ) : (
         <>
           {leftIcon && <Icon name={leftIcon} size={20} color={textColor} />}
@@ -108,7 +118,7 @@ export function Button({
       >
         {variant === 'primary' ? (
           <LinearGradient
-            colors={[...palette.primaryGradient]}
+            colors={[...colors.primaryGradient]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={base}
@@ -116,9 +126,9 @@ export function Button({
             {body}
           </LinearGradient>
         ) : variant === 'danger' ? (
-          <View style={[base, { backgroundColor: palette.errorContainer }]}>{body}</View>
+          <View style={[base, { backgroundColor: colors.errorContainer }]}>{body}</View>
         ) : variant === 'secondary' ? (
-          <View style={[base, { backgroundColor: palette.surfaceContainerHigh }]}>{body}</View>
+          <View style={[base, { backgroundColor: colors.surfaceContainerHigh }]}>{body}</View>
         ) : (
           <View style={[base, { backgroundColor: 'transparent' }]}>{body}</View>
         )}

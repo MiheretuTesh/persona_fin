@@ -2,34 +2,35 @@ import { ReactNode } from 'react';
 import { View, Pressable, StyleSheet, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { palette, spacing, radius, shadow, blur } from '@/theme';
+import { useTheme } from '@/theme';
+import { spacing, radius, shadow, blur } from '@/theme/tokens';
 import { Text } from './Text';
 import { Icon, IconName } from './Icon';
 
 type Props = {
   title: string;
   subtitle?: string;
-  leading?: ReactNode; // usually the user avatar
+  leading?: ReactNode;
   trailingIcon?: IconName;
   onTrailingPress?: () => void;
   onLeadingPress?: () => void;
 };
 
-/**
- * Fixed, translucent top bar. Matches the Stitch header pattern:
- * backdrop-blur-xl, 60% bg-opacity, rim-shadow below.
- */
 export function TopBar({ title, subtitle, leading, trailingIcon, onTrailingPress, onLeadingPress }: Props) {
   const insets = useSafeAreaInsets();
+  const { colors, mode } = useTheme();
+  const bgTint = mode === 'dark' ? 'rgba(8,14,26,0.55)' : 'rgba(246,248,255,0.65)';
+  const hairline = mode === 'dark' ? 'rgba(66,72,86,0.15)' : 'rgba(111,117,133,0.15)';
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { paddingTop: insets.top }, shadow.rim]}>
       <BlurView
-        tint="dark"
+        tint={mode === 'dark' ? 'dark' : 'light'}
         intensity={Platform.OS === 'ios' ? blur.medium : blur.strong}
         style={StyleSheet.absoluteFill}
       />
-      <View style={styles.bg} />
+      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: bgTint }]} />
+      <View style={[styles.hairline, { backgroundColor: hairline }]} />
       <View style={styles.row}>
         <Pressable onPress={onLeadingPress} style={styles.leading} hitSlop={8}>
           {leading}
@@ -57,16 +58,14 @@ export function TopBar({ title, subtitle, leading, trailingIcon, onTrailingPress
 const styles = StyleSheet.create({
   root: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
+    top: 0, left: 0, right: 0,
     zIndex: 50,
     overflow: 'hidden',
-    ...shadow.rim,
   },
-  bg: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(8,14,26,0.55)',
+  hairline: {
+    position: 'absolute',
+    bottom: 0, left: 0, right: 0,
+    height: 1,
   },
   row: {
     height: 64,

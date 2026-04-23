@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
-import { View, ScrollView, StyleSheet, StatusBar, ViewStyle, RefreshControl } from 'react-native';
+import { View, ScrollView, StyleSheet, StatusBar, ViewStyle, RefreshControl, Platform } from 'react-native';
 import { SafeAreaView, Edge } from 'react-native-safe-area-context';
-import { palette } from '@/theme';
+import { useTheme } from '@/theme';
 
 type Props = {
   children: ReactNode;
@@ -10,16 +10,10 @@ type Props = {
   refreshing?: boolean;
   onRefresh?: () => void;
   contentStyle?: ViewStyle;
-  /** Extra top padding to clear the fixed translucent TopBar. Default: 72. */
   topInset?: number;
-  /** Extra bottom padding to clear the translucent tab bar. Default: 100. */
   bottomInset?: number;
 };
 
-/**
- * Dark-first safe-area screen. Handles scroll, pull-to-refresh, and the
- * insets needed to clear fixed glassmorphism chrome (top bar / tab bar).
- */
 export function Screen({
   children,
   scroll = true,
@@ -30,6 +24,8 @@ export function Screen({
   topInset = 72,
   bottomInset = 100,
 }: Props) {
+  const { colors, mode } = useTheme();
+
   const body = scroll ? (
     <ScrollView
       contentContainerStyle={[{ paddingTop: topInset, paddingBottom: bottomInset }, contentStyle]}
@@ -38,11 +34,11 @@ export function Screen({
       refreshControl={
         onRefresh ? (
           <RefreshControl
-            tintColor={palette.primary}
-            colors={[palette.primary]}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
             refreshing={!!refreshing}
             onRefresh={onRefresh}
-            progressBackgroundColor={palette.surfaceContainer}
+            progressBackgroundColor={colors.surfaceContainer}
           />
         ) : undefined
       }
@@ -54,14 +50,11 @@ export function Screen({
   );
 
   return (
-    <SafeAreaView edges={edges} style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor={palette.surface} />
+    <SafeAreaView edges={edges} style={[styles.root, { backgroundColor: colors.surface }]}>
+      <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={colors.surface} />
       {body}
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: palette.surface },
-  flex: { flex: 1 },
-});
+const styles = StyleSheet.create({ root: { flex: 1 }, flex: { flex: 1 } });

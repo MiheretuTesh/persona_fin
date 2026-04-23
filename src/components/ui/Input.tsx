@@ -1,6 +1,7 @@
 import { forwardRef, useState } from 'react';
 import { TextInput, TextInputProps, View, StyleSheet, Pressable, ViewStyle } from 'react-native';
-import { palette, radius, spacing, type } from '@/theme';
+import { useColors } from '@/theme';
+import { radius, spacing, type } from '@/theme/tokens';
 import { Text } from './Text';
 import { Icon, IconName } from './Icon';
 
@@ -14,23 +15,17 @@ type Props = Omit<TextInputProps, 'style'> & {
   style?: ViewStyle;
 };
 
-/**
- * Input architecture (per DS):
- *   — surface_container_low background, no four-sided border
- *   — 2px bottom bar of surface_container_highest
- *   — on focus, bottom bar transitions to secondary (cyan glow) via color swap
- *   — on error, bottom bar becomes error, label flips to error
- */
 export const Input = forwardRef<TextInput, Props>(function Input(
   { label, hint, error, leftIcon, rightIcon, onRightIconPress, style, ...rest },
   ref,
 ) {
+  const colors = useColors();
   const [focused, setFocused] = useState(false);
   const barColor = error
-    ? palette.error
+    ? colors.error
     : focused
-      ? palette.secondary
-      : palette.surfaceContainerHighest;
+      ? colors.secondary
+      : colors.surfaceContainerHighest;
 
   return (
     <View style={[styles.wrap, style]}>
@@ -39,7 +34,15 @@ export const Input = forwardRef<TextInput, Props>(function Input(
           {label}
         </Text>
       )}
-      <View style={[styles.field, { borderBottomColor: barColor }]}>
+      <View
+        style={[
+          styles.field,
+          {
+            backgroundColor: colors.surfaceContainerLow,
+            borderBottomColor: barColor,
+          },
+        ]}
+      >
         {leftIcon && (
           <View style={styles.sideIcon}>
             <Icon name={leftIcon} size={20} color="onSurfaceVariant" />
@@ -47,9 +50,9 @@ export const Input = forwardRef<TextInput, Props>(function Input(
         )}
         <TextInput
           ref={ref}
-          placeholderTextColor={palette.onSurfaceVariant}
-          selectionColor={palette.primary}
-          cursorColor={palette.primary}
+          placeholderTextColor={colors.onSurfaceVariant}
+          selectionColor={colors.primary}
+          cursorColor={colors.primary}
           {...rest}
           onFocus={(e) => {
             setFocused(true);
@@ -59,7 +62,7 @@ export const Input = forwardRef<TextInput, Props>(function Input(
             setFocused(false);
             rest.onBlur?.(e);
           }}
-          style={styles.input}
+          style={[styles.input, { color: colors.onSurface }]}
         />
         {rightIcon && (
           <Pressable onPress={onRightIconPress} hitSlop={8} style={styles.sideIcon}>
@@ -82,7 +85,6 @@ const styles = StyleSheet.create({
   field: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: palette.surfaceContainerLow,
     borderTopLeftRadius: radius.md,
     borderTopRightRadius: radius.md,
     borderBottomLeftRadius: radius.xs,
@@ -93,7 +95,6 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    color: palette.onSurface,
     ...type.bodyLg,
     paddingVertical: spacing[3],
   },
