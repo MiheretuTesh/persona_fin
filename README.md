@@ -171,13 +171,18 @@ The dashboard layout (glass TopBar → balance hero → monthly summary grid wit
 ## 8. Useful commands
 
 ```bash
-npm run typecheck    # tsc --noEmit — zero errors expected after `npm install`
-npm run ios          # cold boot in the iOS simulator
-npm run android      # cold boot in an Android emulator
-npm run icons        # re-render icon / splash PNGs from assets/brand/*.svg
-npm run prebuild     # generate native projects (only needed for bare workflow)
-supabase db reset    # reset the linked database and re-apply migrations
+npm run typecheck            # tsc --noEmit — zero errors expected after `npm install`
+npm run start:go             # Metro + Expo Go (scan QR on phone)
+npm run ios                  # `expo run:ios` — local dev build (needs Xcode)
+npm run android              # `expo run:android` — local dev build (needs Android SDK)
+npm run icons                # re-render icon / splash PNGs from assets/brand/*.svg
+npm run preflight            # sanity-check assets, env, app.json before building
+npm run build:android:preview    # EAS cloud build → signed APK
+npm run build:android:production # EAS cloud build → AAB for Play Store
+supabase db reset            # reset the linked database and re-apply migrations
 ```
+
+**Release builds**: see [BUILD.md](BUILD.md) for EAS Build (cloud, one-command APK) and local Gradle instructions.
 
 ---
 
