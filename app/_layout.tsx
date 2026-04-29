@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments, SplashScreen } from 'expo-router';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -13,7 +13,7 @@ import {
   Manrope_800ExtraBold,
 } from '@expo-google-fonts/manrope';
 import { View } from 'react-native';
-import { queryClient, wireAppStateFocus } from '@/lib/queryClient';
+import { queryClient, persister, wireAppStateFocus, wireOnlineManager } from '@/lib/queryClient';
 import { useAuth } from '@/features/auth/store';
 import { BiometricLockOverlay } from '@/features/auth/BiometricLockOverlay';
 import { useHydratePreferencesFromProfile } from '@/features/preferences/sync';
@@ -35,7 +35,15 @@ export default function RootLayout() {
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     hydrate().finally(() => setHydrated(true));
-    return wireAppStateFocus();
+    // Two listeners that React Query needs:
+    //   - AppState → focusManager: refetch on foreground
+    //   - NetInfo  → onlineManager: pause/resume mutations on offline/online
+    const offFocus = wireAppStateFocus();
+    const offOnline = wireOnlineManager();
+    return () => {
+      offFocus?.();
+      offOnline?.();
+    };
   }, [hydrate]);
 
   useEffect(() => {
@@ -46,11 +54,43 @@ export default function RootLayout() {
     <ThemeProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
-          <QueryClientProvider client={queryClient}>
+          {/*
+            PersistQueryClientProvider replaces QueryClientProvider for
+            offline-first behavior:
+              - On mount, blocks first paint until the persisted snapshot
+                is restored from AsyncStorage.
+              - `maxAge` evicts caches older than 30 days on restore.
+              - `buster` is a manual cache invalidator — bump it to force
+                every client to drop its persisted cache and refetch.
+              - `dehydrateOptions.shouldDehydrateMutation` keeps queued
+                offline mutations alive across restarts so they replay
+                when network returns.
+              - `onSuccess` runs once after restoration; we call
+                `resumePausedMutations()` to flush whatever was queued.
+          */}
+          <PersistQueryClientProvider
+            client={queryClient}
+            persistOptions={{
+              persister,
+              maxAge: 1000 * 60 * 60 * 24 * 30,
+              buster: 'v1',
+              dehydrateOptions: {
+                shouldDehydrateMutation: (mutation) =>
+                  // Persist mutations that are pending or paused — we want
+                  // them to replay after a restart. Successful/erroring
+                  // mutations have already done their job.
+                  mutation.state.status === 'pending',
+              },
+            }}
+            onSuccess={() => {
+              // Cache restored. Replay any mutation that was queued offline.
+              queryClient.resumePausedMutations();
+            }}
+          >
             {!fontsLoaded || status === 'unknown' ? <GateFallback /> : (
               <AuthenticatedShell />
             )}
-          </QueryClientProvider>
+          </PersistQueryClientProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>
     </ThemeProvider>

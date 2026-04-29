@@ -12,3 +12,4 @@ export { Avatar } from './Avatar';
 export { Section } from './Section';
 export { EmptyState } from './EmptyState';
 export { MonthPager } from './MonthPager';
+export { SyncIndicator } from './SyncIndicator';

@@ -6,6 +6,7 @@ import { useTheme } from '@/theme';
 import { spacing, radius, shadow, blur } from '@/theme/tokens';
 import { Text } from './Text';
 import { Icon, IconName } from './Icon';
+import { SyncIndicator } from './SyncIndicator';
 
 type Props = {
   title: string;
@@ -45,11 +46,14 @@ export function TopBar({ title, subtitle, leading, trailingIcon, onTrailingPress
             </Text>
           </View>
         </Pressable>
-        {trailingIcon && (
-          <Pressable onPress={onTrailingPress} style={styles.trailing} hitSlop={10}>
-            <Icon name={trailingIcon} size={22} color="primary" />
-          </Pressable>
-        )}
+        <View style={styles.trailingGroup}>
+          <SyncIndicator />
+          {trailingIcon && (
+            <Pressable onPress={onTrailingPress} style={styles.trailing} hitSlop={10}>
+              <Icon name={trailingIcon} size={22} color="primary" />
+            </Pressable>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -79,6 +83,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[3],
+  },
+  trailingGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
   },
   trailing: {
     width: 40,
