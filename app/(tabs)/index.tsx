@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[2], paddingVertical: 2,
     borderRadius: 999,
   },
-  welcomeWrap: { paddingHorizontal: spacing[6], paddingTop: spacing[10], gap: spacing[6] },
+  welcomeWrap: { paddingHorizontal: spacing[6], paddingTop: spacing[20], gap: spacing[6] },
   welcomeOrb: {
     width: 88, height: 88,
     borderRadius: 44,
