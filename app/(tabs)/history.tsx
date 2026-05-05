@@ -82,7 +82,14 @@ export default function History() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
-      <TopBar leading={<Avatar name={profile.data?.display_name ?? undefined} />} title="Transaction History" subtitle="Your ledger" />
+      <TopBar
+        leading={<Avatar name={profile.data?.display_name ?? undefined} />}
+        title="Transaction History"
+        subtitle="Your ledger"
+        trailingIcon="notifications"
+        onTrailingPress={() => router.push('/notifications')}
+        onLeadingPress={() => router.push('/(tabs)/settings')}
+      />
       <Screen
         contentStyle={styles.content}
         refreshing={txns.isFetching}

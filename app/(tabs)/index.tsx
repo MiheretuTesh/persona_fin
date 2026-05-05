@@ -77,7 +77,7 @@ export default function Dashboard() {
         subtitle={salutation(new Date()) + ', ' + (profile.data?.display_name?.split(' ')[0] ?? 'there')}
         title="Your Financial Vault"
         trailingIcon="notifications"
-        onTrailingPress={() => {}}
+        onTrailingPress={() => router.push('/notifications')}
         onLeadingPress={() => router.push('/(tabs)/settings')}
       />
       <Screen

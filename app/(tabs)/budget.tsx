@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { View, StyleSheet, Pressable, Alert, TextInput } from 'react-native';
+import { useRouter } from 'expo-router';
 import {
   Screen, TopBar, Avatar, Card, Text, Icon, EmptyState, Section, Button,
 } from '@/components/ui';
@@ -14,6 +15,7 @@ import { useCurrency } from '@/features/preferences/store';
 import { formatCurrency, currencySymbol } from '@/lib/formatters';
 
 export default function Budget() {
+  const router = useRouter();
   const { colors } = useTheme();
   const profile = useProfile();
   const currency = useCurrency();
@@ -85,6 +87,9 @@ export default function Budget() {
         leading={<Avatar name={profile.data?.display_name ?? undefined} />}
         title="Budget Planner"
         subtitle="This month"
+        trailingIcon="notifications"
+        onTrailingPress={() => router.push('/notifications')}
+        onLeadingPress={() => router.push('/(tabs)/settings')}
       />
       <Screen contentStyle={styles.content} refreshing={budgets.isFetching} onRefresh={() => budgets.refetch()}>
         {/* Roll-up */}

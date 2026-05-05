@@ -164,6 +164,14 @@ function ThemedStack() {
           contentStyle: { backgroundColor: colors.surfaceContainerLow },
         }}
       />
+      <Stack.Screen
+        name="notifications"
+        options={{
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+          contentStyle: { backgroundColor: colors.surfaceContainerLow },
+        }}
+      />
     </Stack>
   );
 }

@@ -59,3 +59,19 @@ export async function clearDedup(): Promise<void> {
   cache = {};
   await AsyncStorage.removeItem(STORAGE_KEY);
 }
+
+/**
+ * Returns every fired entry as `{ key, firedAt }`, newest first. Used by the
+ * notifications inbox to show a history of past alerts.
+ */
+export async function getAllFired(): Promise<{ key: string; firedAt: string }[]> {
+  const map = await load();
+  return Object.entries(map)
+    .map(([key, firedAt]) => ({ key, firedAt }))
+    .sort((a, b) => (a.firedAt < b.firedAt ? 1 : -1));
+}
+
+/** Force-reload from disk on next access. Call after `clearDedup` from another module. */
+export function invalidateDedupCache(): void {
+  cache = null;
+}

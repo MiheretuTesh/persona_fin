@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { format, startOfMonth, isSameMonth } from 'date-fns';
 import {
   Screen, TopBar, Avatar, Card, Text, Section, Icon, MonthPager, EmptyState,
@@ -29,6 +30,7 @@ function compact(v: number, currency: string) {
 }
 
 export default function Insights() {
+  const router = useRouter();
   const { colors } = useTheme();
   const profile = useProfile();
   const currency = useCurrency();
@@ -70,6 +72,9 @@ export default function Insights() {
         leading={<Avatar name={profile.data?.display_name ?? undefined} />}
         title="Financial Insights"
         subtitle="Where your money goes"
+        trailingIcon="notifications"
+        onTrailingPress={() => router.push('/notifications')}
+        onLeadingPress={() => router.push('/(tabs)/settings')}
       />
       <Screen
         contentStyle={styles.content}

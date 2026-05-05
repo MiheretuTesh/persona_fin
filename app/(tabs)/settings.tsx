@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, StyleSheet, Switch, Alert, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Screen, TopBar, Avatar, Card, Text, Icon, Button, Section } from '@/components/ui';
 import { useTheme } from '@/theme';
 import { radius, spacing } from '@/theme/tokens';
@@ -22,6 +23,7 @@ import { useWipeFinanceData } from '@/features/sync/wipe';
 import * as LocalAuthentication from 'expo-local-authentication';
 
 export default function Settings() {
+  const router = useRouter();
   const { colors, mode, setMode } = useTheme();
   const profile = useProfile();
   const updateProfile = useUpdateProfile();
@@ -124,7 +126,13 @@ export default function Settings() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
-      <TopBar leading={<Avatar name={profile.data?.display_name ?? undefined} />} title="Settings" subtitle="Your Vault" />
+      <TopBar
+        leading={<Avatar name={profile.data?.display_name ?? undefined} />}
+        title="Settings"
+        subtitle="Your Vault"
+        trailingIcon="notifications"
+        onTrailingPress={() => router.push('/notifications')}
+      />
       <Screen contentStyle={styles.content}>
         <Card tone="high" padding={spacing[6]} vault>
           <View style={styles.profileRow}>
