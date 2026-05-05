@@ -106,6 +106,52 @@ export function useCreateBudget() {
   });
 }
 
+/**
+ * Optimistic update — pure amount change for an existing budget. Distinct
+ * from useCreateBudget (which is an upsert) so the call site reads cleanly:
+ * "this is editing an existing row, not creating one".
+ */
+export function useUpdateBudget() {
+  const userId = useAuth((s) => s.user?.id);
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationKey: ['update-budget'],
+    mutationFn: async (input: { id: string; amount: number }): Promise<Budget> => {
+      const { data, error } = await supabase
+        .from('budgets')
+        .update({ amount: Math.abs(input.amount) })
+        .eq('id', input.id)
+        .select('*')
+        .single();
+      if (error) {
+        const full = [error.message, error.details, error.hint].filter(Boolean).join(' · ');
+        throw new Error(full || 'Update failed');
+      }
+      return data;
+    },
+
+    onMutate: async (input) => {
+      await qc.cancelQueries({ queryKey: qk.budgets.all(userId) });
+      const previous = qc.getQueriesData<BudgetWithSpend[]>({ queryKey: qk.budgets.all(userId) });
+      qc.setQueriesData<BudgetWithSpend[]>({ queryKey: qk.budgets.all(userId) }, (old) =>
+        (old ?? []).map((b) =>
+          b.id === input.id ? { ...b, amount: Math.abs(input.amount) } : b,
+        ),
+      );
+      return { previous };
+    },
+
+    onError: (_err, _input, context) => {
+      context?.previous?.forEach(([key, data]) => qc.setQueryData(key, data));
+    },
+
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: qk.budgets.all(userId) });
+    },
+  });
+}
+
 /** Optimistic delete — remove from every cache, restore on error. */
 export function useDeleteBudget() {
   const userId = useAuth((s) => s.user?.id);

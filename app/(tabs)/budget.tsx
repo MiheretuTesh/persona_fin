@@ -7,7 +7,7 @@ import { ProgressBar } from '@/components/charts/ProgressBar';
 import { useTheme } from '@/theme';
 import { radius, spacing, type } from '@/theme/tokens';
 import { useCurrentBudgets } from '@/features/budgets/queries';
-import { useCreateBudget, useDeleteBudget } from '@/features/budgets/mutations';
+import { useCreateBudget, useUpdateBudget, useDeleteBudget } from '@/features/budgets/mutations';
 import { useCategoriesByKind, useCategoryMap } from '@/features/categories/queries';
 import { useProfile } from '@/features/profile/queries';
 import { useCurrency } from '@/features/preferences/store';
@@ -21,9 +21,11 @@ export default function Budget() {
   const expenseCategories = useCategoriesByKind('expense');
   const categoryMap = useCategoryMap();
   const createBudget = useCreateBudget();
+  const updateBudget = useUpdateBudget();
   const deleteBudget = useDeleteBudget();
 
   const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [pickedCategoryId, setPickedCategoryId] = useState<string | null>(null);
   const [amountText, setAmountText] = useState('');
 
@@ -39,20 +41,33 @@ export default function Budget() {
 
   const resetForm = () => {
     setAdding(false);
+    setEditingId(null);
     setPickedCategoryId(null);
     setAmountText('');
   };
 
+  /** Tap an existing budget row → opens the inline form pre-filled. The
+   *  category is locked in edit mode (changing it would be a different budget
+   *  entirely; the user can delete and re-create if they need that). */
+  const startEdit = (id: string, categoryId: string, amount: number) => {
+    setAdding(true);
+    setEditingId(id);
+    setPickedCategoryId(categoryId);
+    setAmountText(String(amount));
+  };
+
   const save = async () => {
-    if (!pickedCategoryId) return Alert.alert('Pick a category', 'Choose which category this budget is for.');
+    if (!editingId && !pickedCategoryId) return Alert.alert('Pick a category', 'Choose which category this budget is for.');
     const n = Number(amountText);
     if (!Number.isFinite(n) || n <= 0) return Alert.alert('Enter an amount', 'Monthly limit must be greater than 0.');
     try {
-      await createBudget.mutateAsync({ categoryId: pickedCategoryId, amount: n });
+      if (editingId) {
+        await updateBudget.mutateAsync({ id: editingId, amount: n });
+      } else {
+        await createBudget.mutateAsync({ categoryId: pickedCategoryId!, amount: n });
+      }
       resetForm();
     } catch (e: any) {
-      // Make the real Postgres error visible — `details` and `hint` are what
-      // actually explain upsert conflicts, missing constraints, and RLS denials.
       const msg = [e?.message, e?.details, e?.hint].filter(Boolean).join(' · ');
       Alert.alert('Could not save budget', msg || 'Something went wrong. Please try again.');
     }
@@ -124,9 +139,28 @@ export default function Budget() {
             <Card tone="low" padding={spacing[5]} style={{ gap: spacing[4] }}>
               <View>
                 <Text variant="labelMd" color="onSurfaceVariant" style={{ marginBottom: spacing[2] }}>
-                  Category
+                  {editingId ? 'Editing' : 'Category'}
                 </Text>
-                {availableCategories.length === 0 ? (
+                {editingId ? (
+                  // Edit mode: show only the locked category as a single tile.
+                  // Changing the category mid-edit would be a different budget;
+                  // user can delete + re-create instead.
+                  (() => {
+                    const cat = pickedCategoryId ? categoryMap.byId.get(pickedCategoryId) : undefined;
+                    return (
+                      <View style={styles.catGrid}>
+                        <View style={[styles.catTile, { backgroundColor: colors.surfaceContainerHighest, opacity: 0.95 }]}>
+                          <View style={[styles.catIcon, { backgroundColor: colors.surface }]}>
+                            <Icon name={cat?.icon ?? 'label'} size={18} color="primary" />
+                          </View>
+                          <Text variant="labelMd" color="primary" center numberOfLines={1}>
+                            {cat?.name ?? '—'}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })()
+                ) : availableCategories.length === 0 ? (
                   <Text variant="bodyMd" color="onSurfaceVariant">
                     Every expense category already has a budget for this month.
                   </Text>
@@ -186,12 +220,12 @@ export default function Budget() {
                 variant="primary"
                 size="md"
                 fullWidth
-                loading={createBudget.isPending}
+                loading={createBudget.isPending || updateBudget.isPending}
                 onPress={save}
                 haptic="success"
                 disabled={!pickedCategoryId || amountText === ''}
               >
-                Save budget
+                {editingId ? 'Save changes' : 'Save budget'}
               </Button>
             </Card>
           )}
@@ -214,6 +248,7 @@ export default function Budget() {
                 return (
                   <Pressable
                     key={b.id}
+                    onPress={() => startEdit(b.id, b.category_id, Number(b.amount))}
                     onLongPress={() => confirmDelete(b.id, cat?.name ?? 'this category')}
                     delayLongPress={400}
                   >
@@ -245,7 +280,7 @@ export default function Budget() {
                 );
               })}
               <Text variant="bodySm" color="onSurfaceVariant" center>
-                Long-press a budget to remove it.
+                Tap a budget to edit · long-press to remove.
               </Text>
             </View>
           )}

@@ -184,6 +184,8 @@ supabase db reset            # reset the linked database and re-apply migrations
 
 **Release builds**: see [BUILD.md](BUILD.md) for EAS Build (cloud, one-command APK) and local Gradle instructions.
 
+**Offline-first caching**: see [CACHING.md](CACHING.md) — explains the AsyncStorage persister, mutation queue, optimistic writes, and how local + Supabase stay in sync.
+
 ---
 
 *Built for people who value order, precision, and privacy.*

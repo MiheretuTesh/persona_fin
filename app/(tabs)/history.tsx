@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
+import { useRouter } from 'expo-router';
+import { isToday, isYesterday, isThisYear, format } from 'date-fns';
 import { Screen, TopBar, Avatar, Input, Chip, Text, EmptyState, Card } from '@/components/ui';
 import { TransactionRow } from '@/components/transactions/TransactionRow';
 import { useTheme } from '@/theme';
@@ -9,11 +11,51 @@ import { useTransactions } from '@/features/transactions/queries';
 import { useCategoryMap } from '@/features/categories/queries';
 import { useProfile } from '@/features/profile/queries';
 import { useCurrency } from '@/features/preferences/store';
+import { formatCurrency } from '@/lib/formatters';
+import type { Transaction } from '@/types/database';
 
 type Filter = 'all' | 'income' | 'expense';
 
+/**
+ * History list — grouped by day with a header row that shows the friendly
+ * date label and the day's net (income − expenses, signed). The flat-list
+ * approach lets FlashList recycle both row types without the overhead of
+ * SectionList's separate rendering paths.
+ */
+type Row =
+  | { type: 'header'; key: string; label: string; net: number }
+  | { type: 'item'; key: string; transaction: Transaction };
+
+function groupByDay(transactions: Transaction[], currency: string): Row[] {
+  // Group by yyyy-MM-dd in local time. Transactions are already
+  // ordered desc by occurred_at from the query.
+  const groups = new Map<string, Transaction[]>();
+  for (const t of transactions) {
+    const day = format(new Date(t.occurred_at), 'yyyy-MM-dd');
+    if (!groups.has(day)) groups.set(day, []);
+    groups.get(day)!.push(t);
+  }
+
+  const rows: Row[] = [];
+  for (const [day, items] of groups) {
+    const date = new Date(day + 'T00:00:00');
+    const label = isToday(date)
+      ? 'Today'
+      : isYesterday(date)
+        ? 'Yesterday'
+        : isThisYear(date)
+          ? format(date, 'EEE · d MMM')
+          : format(date, 'd MMM yyyy');
+    const net = items.reduce((s, t) => s + Number(t.amount), 0);
+    rows.push({ type: 'header', key: `h:${day}`, label, net });
+    for (const t of items) rows.push({ type: 'item', key: t.id, transaction: t });
+  }
+  return rows;
+}
+
 export default function History() {
   const { colors } = useTheme();
+  const router = useRouter();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const profile = useProfile();
@@ -35,6 +77,8 @@ export default function History() {
       );
     });
   }, [txns.data, categories.byId, filter, query]);
+
+  const rows = useMemo(() => groupByDay(filtered, currency), [filtered, currency]);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
@@ -59,7 +103,7 @@ export default function History() {
           <Chip label="Expenses" tone={filter === 'expense' ? 'tertiary' : 'neutral'} onPress={() => setFilter('expense')} />
         </View>
 
-        {filtered.length === 0 ? (
+        {rows.length === 0 ? (
           <Card tone="low" padding={spacing[4]}>
             <EmptyState
               icon="search"
@@ -68,19 +112,37 @@ export default function History() {
             />
           </Card>
         ) : (
-          <View style={{ height: 520 }}>
+          <View style={{ height: 560 }}>
             <FlashList
-              data={filtered}
-              keyExtractor={(item) => item.id}
-              estimatedItemSize={72}
-              renderItem={({ item }) => (
-                <TransactionRow
-                  transaction={item}
-                  category={categories.byId.get(item.category_id)}
-                  currency={currency}
-                />
-              )}
-              ItemSeparatorComponent={() => <View style={{ height: 2 }} />}
+              data={rows}
+              keyExtractor={(row) => row.key}
+              estimatedItemSize={64}
+              getItemType={(row) => row.type}
+              renderItem={({ item }) => {
+                if (item.type === 'header') {
+                  return (
+                    <View style={styles.header}>
+                      <Text variant="labelLg" color="onSurfaceVariant">{item.label}</Text>
+                      <Text
+                        variant="labelMd"
+                        color={item.net > 0 ? 'secondary' : item.net < 0 ? 'tertiary' : 'onSurfaceVariant'}
+                      >
+                        {item.net === 0
+                          ? '—'
+                          : (item.net > 0 ? '+' : '') + formatCurrency(item.net, currency)}
+                      </Text>
+                    </View>
+                  );
+                }
+                return (
+                  <TransactionRow
+                    transaction={item.transaction}
+                    category={categories.byId.get(item.transaction.category_id)}
+                    currency={currency}
+                    onPress={() => router.push(`/transaction/${item.transaction.id}`)}
+                  />
+                );
+              }}
             />
           </View>
         )}
@@ -96,4 +158,12 @@ export default function History() {
 const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing[6], gap: spacing[5] },
   filters: { flexDirection: 'row', gap: spacing[2] },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing[4],
+    paddingTop: spacing[5],
+    paddingBottom: spacing[2],
+  },
 });

@@ -15,7 +15,9 @@ import {
   setBiometricEnabled,
 } from '@/features/auth/biometrics';
 import { CurrencyPickerModal } from '@/components/settings/CurrencyPickerModal';
+import { ConfirmDestructiveModal } from '@/components/settings/ConfirmDestructiveModal';
 import { usePreferences } from '@/features/preferences/store';
+import { useWipeFinanceData } from '@/features/sync/wipe';
 import * as LocalAuthentication from 'expo-local-authentication';
 
 export default function Settings() {
@@ -28,6 +30,8 @@ export default function Settings() {
   const [bioEnabled, setBioEnabledState] = useState(false);
   const [bioType, setBioType] = useState<'face' | 'touch' | 'none'>('none');
   const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
+  const [wipeOpen, setWipeOpen] = useState(false);
+  const wipe = useWipeFinanceData();
 
   useEffect(() => {
     (async () => {
@@ -103,6 +107,19 @@ export default function Settings() {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Sign out', style: 'destructive', onPress: () => signOut() },
     ]);
+
+  const onWipeConfirm = async () => {
+    try {
+      await wipe.mutateAsync();
+      setWipeOpen(false);
+      Alert.alert(
+        'All clear',
+        'Your transactions, budgets, and custom categories have been removed from this device and from Supabase.',
+      );
+    } catch (e: any) {
+      Alert.alert('Could not clear data', e?.message ?? 'Please try again.');
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
@@ -186,7 +203,7 @@ export default function Settings() {
               hint={currency}
               onPress={() => setCurrencyPickerOpen(true)}
             />
-            <Row icon="notifications" label="Notifications" hint="Weekly digest" onPress={() => {}} />
+            <Row icon="notifications" label="Notifications" hint="Coming soon" onPress={() => {}} />
           </Card>
         </Section>
 
@@ -195,6 +212,35 @@ export default function Settings() {
             <Row icon="description" label="Privacy Policy" onPress={() => {}} />
             <Row icon="gavel" label="Terms of Service" onPress={() => {}} />
             <Row icon="info" label="Version" hint="0.1.0" />
+          </Card>
+        </Section>
+
+        <Section title="Danger Zone">
+          <Card tone="low" padding={spacing[5]} style={{ gap: spacing[3] }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing[3] }}>
+              <View style={[styles.rowTile, { backgroundColor: colors.errorContainer }]}>
+                <Icon name="delete_forever" size={18} color="error" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text variant="titleSm" color="onSurface">
+                  Clear all finance data
+                </Text>
+                <Text variant="bodySm" color="onSurfaceVariant">
+                  Removes every transaction, budget, and custom category from this device and from
+                  Supabase. Your account, wallets, and preferences stay. This cannot be undone.
+                </Text>
+              </View>
+            </View>
+            <Button
+              variant="danger"
+              size="md"
+              fullWidth
+              leftIcon="delete_forever"
+              onPress={() => setWipeOpen(true)}
+              haptic="medium"
+            >
+              Clear data…
+            </Button>
           </Card>
         </Section>
 
@@ -208,6 +254,16 @@ export default function Settings() {
         current={currency}
         onClose={() => setCurrencyPickerOpen(false)}
         onPick={pickCurrency}
+      />
+      <ConfirmDestructiveModal
+        visible={wipeOpen}
+        title="Clear all finance data?"
+        body="This deletes every transaction, budget, and custom category — both locally and on Supabase. Your account stays signed in."
+        confirmationWord="DELETE"
+        destructiveLabel="Clear data"
+        loading={wipe.isPending}
+        onCancel={() => (wipe.isPending ? undefined : setWipeOpen(false))}
+        onConfirm={onWipeConfirm}
       />
     </View>
   );

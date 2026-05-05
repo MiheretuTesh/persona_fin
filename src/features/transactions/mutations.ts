@@ -167,3 +167,142 @@ export function useCreateTransaction() {
     },
   });
 }
+
+type UpdateInput = {
+  id: string;
+  walletId: string;
+  categoryId: string;
+  kind: TransactionKind;
+  amount: number;
+  merchant?: string;
+  note?: string;
+  occurredAt: Date;
+};
+
+/**
+ * Optimistic update. Same recipe as create, but we replace by id instead of
+ * prepending. Touches every transactions list cache where this row could
+ * appear.
+ */
+export function useUpdateTransaction() {
+  const userId = useAuth((s) => s.user?.id);
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationKey: ['update-transaction'],
+    mutationFn: async (input: UpdateInput): Promise<Transaction> => {
+      if (!userId) throw new Error('Not authenticated.');
+      const signed =
+        input.kind === 'expense' ? -Math.abs(input.amount) :
+        input.kind === 'income'  ?  Math.abs(input.amount) :
+        Math.abs(input.amount);
+
+      const { data, error } = await supabase
+        .from('transactions')
+        .update({
+          wallet_id: input.walletId,
+          category_id: input.categoryId,
+          kind: input.kind,
+          amount: signed,
+          merchant: input.merchant?.trim() || null,
+          note: input.note?.trim() || null,
+          occurred_at: input.occurredAt.toISOString(),
+        })
+        .eq('id', input.id)
+        .select('*')
+        .single();
+      if (error) {
+        const full = [error.message, error.details, error.hint].filter(Boolean).join(' · ');
+        throw new Error(full || 'Update failed');
+      }
+      return data;
+    },
+
+    onMutate: async (input) => {
+      await qc.cancelQueries({ queryKey: qk.transactions.all(userId) });
+      const previousLists = qc.getQueriesData<Transaction[]>({
+        queryKey: qk.transactions.all(userId),
+      });
+
+      const signed =
+        input.kind === 'expense' ? -Math.abs(input.amount) :
+        input.kind === 'income'  ?  Math.abs(input.amount) :
+        Math.abs(input.amount);
+
+      qc.setQueriesData<Transaction[]>(
+        { queryKey: qk.transactions.all(userId) },
+        (old) =>
+          old?.map((t) =>
+            t.id === input.id
+              ? {
+                  ...t,
+                  wallet_id: input.walletId,
+                  category_id: input.categoryId,
+                  kind: input.kind,
+                  amount: signed,
+                  merchant: input.merchant?.trim() || null,
+                  note: input.note?.trim() || null,
+                  occurred_at: input.occurredAt.toISOString(),
+                }
+              : t,
+          ),
+      );
+
+      return { previousLists };
+    },
+
+    onError: (_err, _input, context) => {
+      context?.previousLists?.forEach(([key, data]) => qc.setQueryData(key, data));
+    },
+
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: qk.transactions.all(userId) });
+      qc.invalidateQueries({ queryKey: qk.transactions.lifetime(userId) });
+      qc.invalidateQueries({ queryKey: qk.budgets.all(userId) });
+      qc.invalidateQueries({ queryKey: qk.insights.all(userId) });
+    },
+  });
+}
+
+/**
+ * Optimistic delete. Removes the row from every list cache; restores on error.
+ */
+export function useDeleteTransaction() {
+  const userId = useAuth((s) => s.user?.id);
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationKey: ['delete-transaction'],
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('transactions').delete().eq('id', id);
+      if (error) {
+        const full = [error.message, error.details, error.hint].filter(Boolean).join(' · ');
+        throw new Error(full || 'Delete failed');
+      }
+      return id;
+    },
+
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: qk.transactions.all(userId) });
+      const previousLists = qc.getQueriesData<Transaction[]>({
+        queryKey: qk.transactions.all(userId),
+      });
+      qc.setQueriesData<Transaction[]>(
+        { queryKey: qk.transactions.all(userId) },
+        (old) => (old ?? []).filter((t) => t.id !== id),
+      );
+      return { previousLists };
+    },
+
+    onError: (_err, _id, context) => {
+      context?.previousLists?.forEach(([key, data]) => qc.setQueryData(key, data));
+    },
+
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: qk.transactions.all(userId) });
+      qc.invalidateQueries({ queryKey: qk.transactions.lifetime(userId) });
+      qc.invalidateQueries({ queryKey: qk.budgets.all(userId) });
+      qc.invalidateQueries({ queryKey: qk.insights.all(userId) });
+    },
+  });
+}

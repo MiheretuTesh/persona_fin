@@ -148,6 +148,14 @@ function ThemedStack() {
           contentStyle: { backgroundColor: colors.surfaceContainerLow },
         }}
       />
+      <Stack.Screen
+        name="transaction/[id]"
+        options={{
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+          contentStyle: { backgroundColor: colors.surfaceContainerLow },
+        }}
+      />
     </Stack>
   );
 }
