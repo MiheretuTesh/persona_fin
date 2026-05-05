@@ -60,6 +60,13 @@
           "resizeMode": "contain"
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "color": "#4EDEA3",
+          "defaultChannel": "default"
+        }
+      ],
       "expo-font"
     ],
     "experiments": {
