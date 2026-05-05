@@ -17,6 +17,8 @@ import { queryClient, persister, wireAppStateFocus, wireOnlineManager } from '@/
 import { useAuth } from '@/features/auth/store';
 import { BiometricLockOverlay } from '@/features/auth/BiometricLockOverlay';
 import { useHydratePreferencesFromProfile } from '@/features/preferences/sync';
+import { useNotificationEngine } from '@/features/notifications/engine';
+import { InAppBannerHost } from '@/components/ui/InAppBannerHost';
 import { ThemeProvider, useTheme } from '@/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -110,6 +112,10 @@ function ThemedStatusBar() {
  */
 function AuthenticatedShell() {
   useHydratePreferencesFromProfile();
+  // Drives push + in-app notifications: schedules the month-end reminder,
+  // evaluates budget/income rules whenever finance data changes, and feeds
+  // the in-app banner queue. Mounted here so it only runs while signed in.
+  useNotificationEngine();
   return (
     <>
       <ThemedStatusBar />
@@ -118,6 +124,8 @@ function AuthenticatedShell() {
       </AuthGate>
       {/* Overlay paints above the Stack when biometric unlock is pending. */}
       <BiometricLockOverlay />
+      {/* Renders the active in-app banner stack above all routes. */}
+      <InAppBannerHost />
     </>
   );
 }

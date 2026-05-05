@@ -12,6 +12,9 @@ export function configureForegroundHandler() {
   handlerSet = true;
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
+      // shouldShowAlert is the legacy flag; the SDK still requires it on the
+      // type. shouldShowBanner/shouldShowList are the new iOS 14+ split.
+      shouldShowAlert: true,
       shouldShowBanner: true,
       shouldShowList: true,
       shouldPlaySound: false,

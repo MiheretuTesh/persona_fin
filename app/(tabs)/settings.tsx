@@ -16,6 +16,7 @@ import {
 } from '@/features/auth/biometrics';
 import { CurrencyPickerModal } from '@/components/settings/CurrencyPickerModal';
 import { ConfirmDestructiveModal } from '@/components/settings/ConfirmDestructiveModal';
+import { NotificationDevPanel } from '@/components/settings/NotificationDevPanel';
 import { usePreferences } from '@/features/preferences/store';
 import { useWipeFinanceData } from '@/features/sync/wipe';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -206,6 +207,8 @@ export default function Settings() {
             <Row icon="notifications" label="Notifications" hint="Coming soon" onPress={() => {}} />
           </Card>
         </Section>
+
+        <NotificationDevPanel />
 
         <Section title="About">
           <Card tone="low" padding={0}>
