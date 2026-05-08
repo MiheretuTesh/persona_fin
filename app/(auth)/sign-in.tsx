@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { View, KeyboardAvoidingView, Platform, StyleSheet, Alert, Pressable } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,13 +8,19 @@ import { useTheme } from '@/theme';
 import { radius, spacing } from '@/theme/tokens';
 import { signInSchema, SignInValues } from '@/features/auth/schemas';
 import { useAuth } from '@/features/auth/store';
-import { biometricsAvailable, getBiometricType, promptBiometric, isBiometricEnabled } from '@/features/auth/biometrics';
 
+/**
+ * Sign-in is reached only when there is *no* persisted session — `<AuthGate>`
+ * redirects authenticated users away. Biometric unlock therefore has nothing
+ * to act on here (a biometric pass alone can't conjure a session out of thin
+ * air), so this screen is password-only. The biometric flow lives at the
+ * root in `<BiometricLockOverlay/>` and only fires when there's a saved
+ * session to unlock.
+ */
 export default function SignIn() {
   const { colors } = useTheme();
   const signIn = useAuth((s) => s.signIn);
   const sendPasswordReset = useAuth((s) => s.sendPasswordReset);
-  const [bioType, setBioType] = useState<'face' | 'touch' | 'none'>('none');
   const [showPassword, setShowPassword] = useState(false);
 
   const { control, handleSubmit, formState, watch } = useForm<SignInValues>({
@@ -22,15 +28,6 @@ export default function SignIn() {
     defaultValues: { email: '', password: '' },
     mode: 'onBlur',
   });
-
-  // If the user previously opted into biometrics, surface the button.
-  useEffect(() => {
-    (async () => {
-      if ((await biometricsAvailable()) && (await isBiometricEnabled())) {
-        setBioType(await getBiometricType());
-      }
-    })();
-  }, []);
 
   const onSubmit = async (v: SignInValues) => {
     try {
@@ -127,23 +124,6 @@ export default function SignIn() {
           >
             Enter your Vault
           </Button>
-
-          {bioType !== 'none' && (
-            <Button
-              variant="secondary"
-              size="lg"
-              fullWidth
-              leftIcon={bioType === 'face' ? 'face' : 'fingerprint'}
-              onPress={async () => {
-                const ok = await promptBiometric('Unlock Equilibrium');
-                if (!ok) return;
-                // Biometric success trusts the on-device session: session is already persisted in SecureStore.
-                // If no session is present this succeeds then the AuthGate will still route to sign-in.
-              }}
-            >
-              Unlock with {bioType === 'face' ? 'Face ID' : 'Touch ID'}
-            </Button>
-          )}
         </View>
 
         <View style={styles.footer}>

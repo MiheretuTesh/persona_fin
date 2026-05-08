@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Redirect } from 'expo-router';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
@@ -6,31 +5,25 @@ import { useTheme } from '@/theme';
 import { spacing } from '@/theme/tokens';
 import { Text } from '@/components/ui';
 import { useAuth } from '@/features/auth/store';
-import { isBiometricEnabled, promptBiometric } from '@/features/auth/biometrics';
 
 /**
- * Boot route. Renders the Equilibrium mark for a beat while we check session
- * (and optionally prompt for biometric unlock), then redirects. The native
- * splash is already hidden by root layout once fonts + session are ready —
- * this is the in-app splash that bridges into the Vault.
+ * Boot route. Briefly shows the Equilibrium mark while session hydrates,
+ * then redirects to /(tabs) or /(auth)/sign-in based on auth status.
+ *
+ * Important: this route does NOT prompt for biometric. Biometric unlock
+ * is handled exclusively by <BiometricLockOverlay/> mounted in the root
+ * layout — having a second prompt here was racing the overlay's prompt
+ * and (worse) calling signOut() on failure, which kicked the user back
+ * to the login screen on every cold start.
  */
 export default function Index() {
   const { colors } = useTheme();
   const status = useAuth((s) => s.status);
-  const signOut = useAuth((s) => s.signOut);
-
-  useEffect(() => {
-    (async () => {
-      if (status !== 'authenticated') return;
-      if (!(await isBiometricEnabled())) return;
-      const ok = await promptBiometric('Unlock your Vault');
-      if (!ok) await signOut();
-    })();
-  }, [status, signOut]);
 
   if (status === 'authenticated') return <Redirect href="/(tabs)" />;
   if (status === 'guest') return <Redirect href="/(auth)/sign-in" />;
 
+  // status === 'unknown' → still hydrating. Show the in-app splash.
   return (
     <View style={[styles.root, { backgroundColor: colors.surface }]}>
       <View style={[styles.mark, { backgroundColor: colors.surfaceContainerHighest }]}>

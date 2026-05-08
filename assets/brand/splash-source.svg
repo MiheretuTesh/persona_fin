@@ -1,34 +1,45 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Equilibrium Finance — Launch Splash
-  A centered Equilibrium mark over the signature deep navy, sized to render
-  clearly on every device after Expo's "contain" resize.
+  Equilibrium Finance — Launch Splash (logo only)
+
+  Transparent background. The actual splash background color is controlled by
+  app.json `expo-splash-screen.backgroundColor` (and the iOS / Android native
+  resources prebuild generates from it). Keeping the image transparent means
+  the splash automatically tracks the configured theme color, and we never
+  see a hairline mismatch between the image's baked-in background and the
+  surface color the OS paints behind it.
+
+  Square 1024 canvas — Expo's `resizeMode: contain` will scale-fit it on every
+  device, leaving the configured background to fill the rest of the screen.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1242 2688">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="splash-surface" x1="0.5" y1="0" x2="0.5" y2="1">
-      <stop offset="0" stop-color="#080e1a"/>
-      <stop offset="1" stop-color="#0b111d"/>
-    </linearGradient>
     <linearGradient id="splash-beam" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="#a0e4fe"/>
       <stop offset="1" stop-color="#66aac2"/>
     </linearGradient>
   </defs>
 
-  <rect width="1242" height="2688" fill="url(#splash-surface)"/>
-
-  <!-- Centered monogram, scaled down from the icon -->
-  <g transform="translate(371 1080)">
-    <rect x="120" y="0" width="24" height="440" rx="12" fill="url(#splash-beam)" opacity="0.9"/>
-    <rect x="144" y="36" width="280" height="48" rx="24" fill="#e6ebfc"/>
-    <rect x="144" y="196" width="220" height="48" rx="24" fill="#a0e4fe"/>
-    <rect x="144" y="356" width="280" height="48" rx="24" fill="#e6ebfc"/>
+  <!-- The Equilibrium monogram, centered. Mirrors icon-source.svg geometry but
+       slightly more compact so the wordmark below has room. -->
+  <g transform="translate(380 280)">
+    <!-- Vertical spine -->
+    <rect x="120" y="0" width="28" height="440" rx="14" fill="url(#splash-beam)" opacity="0.95"/>
+    <!-- Top crossbar (income weight) -->
+    <rect x="148" y="40" width="280" height="56" rx="28" fill="#e6ebfc"/>
+    <!-- Middle crossbar (equilibrium) -->
+    <rect x="148" y="200" width="220" height="56" rx="28" fill="#a0e4fe"/>
+    <!-- Bottom crossbar (reserves) -->
+    <rect x="148" y="360" width="280" height="56" rx="28" fill="#e6ebfc"/>
   </g>
 
   <!-- Wordmark beneath the symbol -->
-  <text x="621" y="1720" text-anchor="middle" font-family="Manrope, -apple-system, sans-serif"
-        font-size="84" font-weight="700" letter-spacing="-2" fill="#e6ebfc">Equilibrium</text>
-  <text x="621" y="1780" text-anchor="middle" font-family="Manrope, -apple-system, sans-serif"
-        font-size="28" font-weight="500" letter-spacing="6" fill="#a5abbb">FINANCE</text>
+  <text x="512" y="820" text-anchor="middle"
+        font-family="Manrope, -apple-system, sans-serif"
+        font-size="64" font-weight="700" letter-spacing="-1.4"
+        fill="#e6ebfc">Equilibrium</text>
+  <text x="512" y="868" text-anchor="middle"
+        font-family="Manrope, -apple-system, sans-serif"
+        font-size="22" font-weight="500" letter-spacing="6"
+        fill="#a5abbb">FINANCE</text>
 </svg>

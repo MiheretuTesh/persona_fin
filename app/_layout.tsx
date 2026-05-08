@@ -14,7 +14,7 @@ import {
 } from '@expo-google-fonts/manrope';
 import { View } from 'react-native';
 import { queryClient, persister, wireAppStateFocus, wireOnlineManager } from '@/lib/queryClient';
-import { useAuth } from '@/features/auth/store';
+import { useAuth, wireAuthAutoRefresh } from '@/features/auth/store';
 import { BiometricLockOverlay } from '@/features/auth/BiometricLockOverlay';
 import { useHydratePreferencesFromProfile } from '@/features/preferences/sync';
 import { useNotificationEngine } from '@/features/notifications/engine';
@@ -37,14 +37,21 @@ export default function RootLayout() {
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     hydrate().finally(() => setHydrated(true));
-    // Two listeners that React Query needs:
-    //   - AppState → focusManager: refetch on foreground
+    // Three listeners running for the lifetime of the app:
+    //   - AppState → focusManager: refetch on foreground (React Query)
     //   - NetInfo  → onlineManager: pause/resume mutations on offline/online
+    //   - AppState → Supabase auto-refresh: stop on background, start on
+    //     foreground. Without this, the auto-refresh timer fires while the
+    //     app is backgrounded, hits a closed network socket, fails, and
+    //     SIGNED_OUT gets emitted — which kicks the user back to login on
+    //     next foreground, even though the refresh token was fine.
     const offFocus = wireAppStateFocus();
     const offOnline = wireOnlineManager();
+    const offAutoRefresh = wireAuthAutoRefresh();
     return () => {
       offFocus?.();
       offOnline?.();
+      offAutoRefresh?.();
     };
   }, [hydrate]);
 

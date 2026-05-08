@@ -13,6 +13,14 @@ import { biometricsAvailable, getBiometricType, isBiometricEnabled, promptBiomet
  * long enough to tolerate momentary switches (e.g., system password prompt). */
 const LOCK_GRACE_MS = 30_000;
 
+/**
+ * If the user authenticated by password within this many ms, we treat the
+ * session as "freshly proven" and skip the biometric gate entirely. 60s
+ * comfortably covers the navigation hop from sign-in → tabs plus any first
+ * data fetch, without leaving a wide window.
+ */
+const FRESH_AUTH_GRACE_MS = 60_000;
+
 type Status = 'idle' | 'locked' | 'unlocked';
 
 /**
@@ -27,6 +35,7 @@ type Status = 'idle' | 'locked' | 'unlocked';
 export function BiometricLockOverlay() {
   const { colors } = useTheme();
   const status = useAuth((s) => s.status);
+  const sessionAuthenticatedAt = useAuth((s) => s.sessionAuthenticatedAt);
   const signOut = useAuth((s) => s.signOut);
   const [lockState, setLockState] = useState<Status>('idle');
   const [bioType, setBioType] = useState<'face' | 'touch' | 'none'>('none');
@@ -40,9 +49,28 @@ export function BiometricLockOverlay() {
   }, []);
 
   // Initial check when user lands here authenticated for the first time.
+  // Three-way decision:
+  //   1. Just signed in by password (sessionAuthenticatedAt is recent) → trust
+  //      the password auth, mark unlocked, no biometric prompt.
+  //   2. Session restored from SecureStore on cold start, biometric enabled →
+  //      prompt for biometric.
+  //   3. Biometric not enabled or not available → unlocked.
   useEffect(() => {
     if (status !== 'authenticated' || hasCheckedInit.current) return;
     hasCheckedInit.current = true;
+
+    const justSignedIn =
+      sessionAuthenticatedAt !== null &&
+      Date.now() - sessionAuthenticatedAt < FRESH_AUTH_GRACE_MS;
+
+    if (justSignedIn) {
+      // Bypass biometric — the user literally just typed their password.
+      setLockState('unlocked');
+      // Still capture bioType so future foreground re-locks render the right icon.
+      getBiometricType().then(setBioType).catch(() => {});
+      return;
+    }
+
     (async () => {
       const [avail, enabled, t] = await Promise.all([
         biometricsAvailable(),
@@ -57,7 +85,7 @@ export function BiometricLockOverlay() {
         setLockState('unlocked');
       }
     })();
-  }, [status, tryPrompt]);
+  }, [status, sessionAuthenticatedAt, tryPrompt]);
 
   // AppState foreground gate.
   useEffect(() => {
