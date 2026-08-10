@@ -59,6 +59,7 @@ export function useWipeFinanceData() {
       qc.removeQueries({ queryKey: ['budgets'] });
       qc.removeQueries({ queryKey: ['categories'] });
       qc.removeQueries({ queryKey: ['insights'] });
+      qc.removeQueries({ queryKey: ['tracking'] });
       // Trigger refetches so the seeded system categories rehydrate.
       qc.invalidateQueries({ queryKey: ['categories'] });
 

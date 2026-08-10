@@ -1,13 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
+import { qk } from '@/lib/queryKeys';
 import { useAuth } from '@/features/auth/store';
 import type { Category, TransactionKind } from '@/types/database';
 
 export function useCategories() {
   const userId = useAuth((s) => s.user?.id);
   return useQuery({
-    queryKey: ['categories', userId],
+    queryKey: qk.categories.list(userId),
     enabled: !!userId,
     queryFn: async (): Promise<Category[]> => {
       const { data, error } = await supabase

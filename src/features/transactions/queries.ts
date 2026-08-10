@@ -32,7 +32,7 @@ export function useTransactions(opts: { month?: Date; limit?: number } = {}) {
   const scope = month ? periodScope(month, system) : 'all';
 
   return useQuery({
-    queryKey: ['transactions', userId, scope, limit],
+    queryKey: qk.transactions.list(userId, scope, limit),
     enabled: !!userId,
     queryFn: async (): Promise<Transaction[]> => {
       let q = supabase
@@ -84,7 +84,7 @@ export function useTransaction(id: string | undefined) {
   const qc = useQueryClient();
 
   return useQuery({
-    queryKey: ['transaction', id],
+    queryKey: qk.transactions.one(id),
     enabled: !!id && !!userId,
     queryFn: async (): Promise<Transaction> => {
       const { data, error } = await supabase
@@ -97,9 +97,11 @@ export function useTransaction(id: string | undefined) {
     },
     initialData: () => {
       if (!id) return undefined;
-      // Sweep every cached list for a matching row.
-      const lists = qc.getQueriesData<Transaction[]>({ queryKey: qk.transactions.all(userId) });
-      for (const [, data] of lists) {
+      // Sweep every cached list for a matching row. `lists` (not `all`) —
+      // the broader prefix also matches `lifetime` and `daily`, which cache
+      // plain objects rather than arrays.
+      const cached = qc.getQueriesData<Transaction[]>({ queryKey: qk.transactions.lists(userId) });
+      for (const [, data] of cached) {
         const found = data?.find((t) => t.id === id);
         if (found) return found;
       }
@@ -119,7 +121,7 @@ export function useTransaction(id: string | undefined) {
 export function useDailyTotals(days = 7) {
   const userId = useAuth((s) => s.user?.id);
   return useQuery({
-    queryKey: ['transactions', 'daily', userId, days],
+    queryKey: qk.transactions.daily(userId, days),
     enabled: !!userId,
     queryFn: async (): Promise<{ income: number[]; expense: number[]; days: string[] }> => {
       const start = startOfDay(subDays(new Date(), days - 1));
@@ -175,7 +177,7 @@ export function useDailyTotals(days = 7) {
 export function useLifetimeTotals() {
   const userId = useAuth((s) => s.user?.id);
   return useQuery({
-    queryKey: ['transactions', 'lifetime', userId],
+    queryKey: qk.transactions.lifetime(userId),
     enabled: !!userId,
     staleTime: 60_000,
     queryFn: async () => {

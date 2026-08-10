@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { qk } from '@/lib/queryKeys';
 import { useAuth } from '@/features/auth/store';
 import { useCalendarSystem } from '@/features/preferences/store';
 import { addPeriods, endOfPeriod, periodKey, periodScope, startOfPeriod } from '@/lib/calendar';
@@ -75,7 +76,7 @@ export function useExpenseTracking(anchor = new Date()) {
   const previousStart = startOfPeriod(previousAnchor, system);
 
   return useQuery({
-    queryKey: ['tracking', 'expenses', userId, scope],
+    queryKey: qk.tracking.expenses(userId, scope),
     enabled: !!userId,
     queryFn: async (): Promise<ExpenseTracking> => {
       // One window covering both periods, split client-side. Two round-trips
@@ -198,7 +199,7 @@ export function useCategoryTracking(categoryId: string | undefined, anchor = new
   const scope = periodScope(anchor, system);
 
   return useQuery({
-    queryKey: ['tracking', 'category', userId, categoryId, scope, periods],
+    queryKey: qk.tracking.category(userId, categoryId, scope, periods),
     enabled: !!userId && !!categoryId,
     queryFn: async (): Promise<CategoryTrackingDetail> => {
       const currentStart = startOfPeriod(anchor, system);

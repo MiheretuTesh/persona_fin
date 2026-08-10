@@ -1,8 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { startOfMonth, format } from 'date-fns';
+import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import { qk } from '@/lib/queryKeys';
 import { useAuth } from '@/features/auth/store';
+import { useCalendarSystem } from '@/features/preferences/store';
+import { startOfPeriod } from '@/lib/calendar';
 import type { Budget } from '@/types/database';
 import type { BudgetWithSpend } from './queries';
 
@@ -21,16 +23,25 @@ type CreateInput = {
  * (joined with computed expense totals). For an optimistic insert we set
  * `spent: 0` — the budget didn't exist a second ago, so no expenses were
  * categorized against it. The next refetch will reconcile.
+ *
+ * IMPORTANT — `start_on` must be the *active calendar's* period start, which
+ * is what `useCurrentBudgets` filters on (`start_on <= periodStart`). Using
+ * Gregorian `startOfMonth` here would desync the two on the Ethiopian
+ * calendar: creating a budget on 5 Oct (inside መስከረም, which began 11 Sep)
+ * would write `start_on = 2026-10-01` while the query asks for
+ * `start_on <= 2026-09-11` — so the budget the user just created would be
+ * filtered straight back out and appear not to save.
  */
 export function useCreateBudget() {
   const userId = useAuth((s) => s.user?.id);
   const qc = useQueryClient();
+  const system = useCalendarSystem();
 
   return useMutation({
     mutationKey: ['create-budget'],
     mutationFn: async (input: CreateInput): Promise<Budget> => {
       if (!userId) throw new Error('Not authenticated.');
-      const anchor = startOfMonth(input.month ?? new Date());
+      const anchor = startOfPeriod(input.month ?? new Date(), system);
       const { data, error } = await supabase
         .from('budgets')
         .upsert(
@@ -56,7 +67,7 @@ export function useCreateBudget() {
       await qc.cancelQueries({ queryKey: qk.budgets.all(userId) });
       const previous = qc.getQueriesData<BudgetWithSpend[]>({ queryKey: qk.budgets.all(userId) });
 
-      const anchor = startOfMonth(input.month ?? new Date());
+      const anchor = startOfPeriod(input.month ?? new Date(), system);
       const optimistic: BudgetWithSpend = {
         id: `temp-${Date.now()}`,
         user_id: userId ?? '',
@@ -102,6 +113,9 @@ export function useCreateBudget() {
 
     onSettled: () => {
       qc.invalidateQueries({ queryKey: qk.budgets.all(userId) });
+      // Tracking rows carry budget limits and consumption ratios, so a budget
+      // change is as much a tracking change as a budget one.
+      qc.invalidateQueries({ queryKey: qk.tracking.all(userId) });
     },
   });
 }
@@ -148,6 +162,9 @@ export function useUpdateBudget() {
 
     onSettled: () => {
       qc.invalidateQueries({ queryKey: qk.budgets.all(userId) });
+      // Tracking rows carry budget limits and consumption ratios, so a budget
+      // change is as much a tracking change as a budget one.
+      qc.invalidateQueries({ queryKey: qk.tracking.all(userId) });
     },
   });
 }
@@ -183,6 +200,9 @@ export function useDeleteBudget() {
 
     onSettled: () => {
       qc.invalidateQueries({ queryKey: qk.budgets.all(userId) });
+      // Tracking rows carry budget limits and consumption ratios, so a budget
+      // change is as much a tracking change as a budget one.
+      qc.invalidateQueries({ queryKey: qk.tracking.all(userId) });
     },
   });
 }

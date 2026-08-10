@@ -44,7 +44,12 @@ export async function fireLocalNotification(opts: {
       // Android: lifts the notification to heads-up alongside channel importance.
       priority: Notifications.AndroidNotificationPriority.HIGH,
       color: '#4EDEA3',
-      ...(Platform.OS === 'ios' ? { interruptionLevel: 'timeSensitive' as const } : null),
+      // iOS: `active` shows a banner and lights the screen without needing any
+      // entitlement. `timeSensitive` would also break through Focus modes, but
+      // that requires the com.apple.developer.usernotifications.time-sensitive
+      // entitlement, which this app doesn't declare — so it would silently
+      // degrade to `active` anyway.
+      ...(Platform.OS === 'ios' ? { interruptionLevel: 'active' as const } : null),
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,

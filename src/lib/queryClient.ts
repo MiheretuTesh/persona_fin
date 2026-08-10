@@ -108,13 +108,27 @@ export function wireAppStateFocus() {
  * Returns an unsubscribe function for cleanup.
  */
 export function wireOnlineManager() {
-  return onlineManager.setEventListener((setOnline) => {
-    const unsubscribe = NetInfo.addEventListener((state) => {
+  // `onlineManager.setEventListener` returns void — it hands the setup fn's
+  // cleanup to React Query, which only runs it when the manager itself is
+  // torn down. A prior revision returned its result directly and the root
+  // layout called it on unmount, which was a no-op on a `void` value (and a
+  // type error). Capture the NetInfo subscription so the caller can actually
+  // detach it.
+  let unsubscribe: (() => void) | undefined;
+
+  onlineManager.setEventListener((setOnline) => {
+    const sub = NetInfo.addEventListener((state) => {
       // `isInternetReachable` can be null on first call; coerce to true to
       // avoid bouncing the UI to "offline" before NetInfo has actually probed.
       const reachable = state.isInternetReachable ?? state.isConnected ?? true;
       setOnline(!!reachable);
     });
-    return unsubscribe;
+    unsubscribe = sub;
+    return sub;
   });
+
+  return () => {
+    unsubscribe?.();
+    unsubscribe = undefined;
+  };
 }

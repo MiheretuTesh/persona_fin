@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { qk } from '@/lib/queryKeys';
 import { useAuth } from '@/features/auth/store';
 import { useCalendarSystem } from '@/features/preferences/store';
 import { addPeriods, endOfPeriod, periodKey, periodScope, startOfPeriod } from '@/lib/calendar';
@@ -28,7 +29,7 @@ export function useCategoryBreakdown(anchor = new Date()) {
   const end = endOfPeriod(anchor, system);
 
   return useQuery({
-    queryKey: ['insights', 'category', userId, scope],
+    queryKey: qk.insights.categoryBreakdown(userId, scope),
     enabled: !!userId,
     queryFn: async (): Promise<CategorySpend[]> => {
       const { data, error } = await supabase
@@ -67,7 +68,7 @@ export function useSpendTrend(periods = 6) {
   const currentScope = periodScope(new Date(), system);
 
   return useQuery({
-    queryKey: ['insights', 'trend', userId, currentScope, periods],
+    queryKey: qk.insights.spendTrend(userId, currentScope, periods),
     enabled: !!userId,
     queryFn: async (): Promise<PeriodSpend[]> => {
       const now = new Date();

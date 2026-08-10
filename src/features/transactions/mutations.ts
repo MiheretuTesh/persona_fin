@@ -85,14 +85,14 @@ export function useCreateTransaction() {
 
     onMutate: async (input) => {
       // (1) Cancel refetches so they don't race our optimistic write.
-      await qc.cancelQueries({ queryKey: qk.transactions.all(userId) });
+      await qc.cancelQueries({ queryKey: qk.transactions.lists(userId) });
 
       // (2) Snapshot every list cache we touch. We use `getQueriesData` so
       //     this works for both `useTransactions()` (no month) and
       //     `useTransactions({ month })` variants — every key under the
       //     `['transactions', userId, ...]` prefix is captured.
       const previousLists = qc.getQueriesData<Transaction[]>({
-        queryKey: qk.transactions.all(userId),
+        queryKey: qk.transactions.lists(userId),
       });
 
       // (3) Synthesize the optimistic row.
@@ -118,7 +118,7 @@ export function useCreateTransaction() {
       // whose query key implies the new row would have been included anyway
       // (i.e., scope === 'all' or the row's month falls in the cached month).
       qc.setQueriesData<Transaction[]>(
-        { queryKey: qk.transactions.all(userId) },
+        { queryKey: qk.transactions.lists(userId) },
         (old) => (old ? [optimistic, ...old] : [optimistic]),
       );
 
@@ -138,7 +138,7 @@ export function useCreateTransaction() {
       // We can identify temp rows by id prefix; this avoids assuming
       // they're at index 0 (a refetch could have reshuffled).
       qc.setQueriesData<Transaction[]>(
-        { queryKey: qk.transactions.all(userId) },
+        { queryKey: qk.transactions.lists(userId) },
         (old) => {
           if (!old) return [real];
           let replaced = false;
@@ -160,10 +160,13 @@ export function useCreateTransaction() {
       //   - lifetime totals (Vault net worth depends on this)
       //   - budgets (spent-per-category recomputes)
       //   - insights (donut + trend)
+      // `transactions.all` is a prefix that now covers the period lists, the
+      // lifetime roll-up, and the daily sparkline buckets — see the
+      // userId-position rule in queryKeys.ts.
       qc.invalidateQueries({ queryKey: qk.transactions.all(userId) });
-      qc.invalidateQueries({ queryKey: qk.transactions.lifetime(userId) });
       qc.invalidateQueries({ queryKey: qk.budgets.all(userId) });
       qc.invalidateQueries({ queryKey: qk.insights.all(userId) });
+      qc.invalidateQueries({ queryKey: qk.tracking.all(userId) });
     },
   });
 }
@@ -219,9 +222,9 @@ export function useUpdateTransaction() {
     },
 
     onMutate: async (input) => {
-      await qc.cancelQueries({ queryKey: qk.transactions.all(userId) });
+      await qc.cancelQueries({ queryKey: qk.transactions.lists(userId) });
       const previousLists = qc.getQueriesData<Transaction[]>({
-        queryKey: qk.transactions.all(userId),
+        queryKey: qk.transactions.lists(userId),
       });
 
       const signed =
@@ -230,7 +233,7 @@ export function useUpdateTransaction() {
         Math.abs(input.amount);
 
       qc.setQueriesData<Transaction[]>(
-        { queryKey: qk.transactions.all(userId) },
+        { queryKey: qk.transactions.lists(userId) },
         (old) =>
           old?.map((t) =>
             t.id === input.id
@@ -256,10 +259,13 @@ export function useUpdateTransaction() {
     },
 
     onSettled: () => {
+      // `transactions.all` is a prefix that now covers the period lists, the
+      // lifetime roll-up, and the daily sparkline buckets — see the
+      // userId-position rule in queryKeys.ts.
       qc.invalidateQueries({ queryKey: qk.transactions.all(userId) });
-      qc.invalidateQueries({ queryKey: qk.transactions.lifetime(userId) });
       qc.invalidateQueries({ queryKey: qk.budgets.all(userId) });
       qc.invalidateQueries({ queryKey: qk.insights.all(userId) });
+      qc.invalidateQueries({ queryKey: qk.tracking.all(userId) });
     },
   });
 }
@@ -283,12 +289,12 @@ export function useDeleteTransaction() {
     },
 
     onMutate: async (id) => {
-      await qc.cancelQueries({ queryKey: qk.transactions.all(userId) });
+      await qc.cancelQueries({ queryKey: qk.transactions.lists(userId) });
       const previousLists = qc.getQueriesData<Transaction[]>({
-        queryKey: qk.transactions.all(userId),
+        queryKey: qk.transactions.lists(userId),
       });
       qc.setQueriesData<Transaction[]>(
-        { queryKey: qk.transactions.all(userId) },
+        { queryKey: qk.transactions.lists(userId) },
         (old) => (old ?? []).filter((t) => t.id !== id),
       );
       return { previousLists };
@@ -299,10 +305,13 @@ export function useDeleteTransaction() {
     },
 
     onSettled: () => {
+      // `transactions.all` is a prefix that now covers the period lists, the
+      // lifetime roll-up, and the daily sparkline buckets — see the
+      // userId-position rule in queryKeys.ts.
       qc.invalidateQueries({ queryKey: qk.transactions.all(userId) });
-      qc.invalidateQueries({ queryKey: qk.transactions.lifetime(userId) });
       qc.invalidateQueries({ queryKey: qk.budgets.all(userId) });
       qc.invalidateQueries({ queryKey: qk.insights.all(userId) });
+      qc.invalidateQueries({ queryKey: qk.tracking.all(userId) });
     },
   });
 }

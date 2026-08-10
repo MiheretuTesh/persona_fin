@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
+import { qk } from '@/lib/queryKeys';
 import { useAuth } from '@/features/auth/store';
 import { useCalendarSystem } from '@/features/preferences/store';
 import { endOfPeriod, periodScope, startOfPeriod } from '@/lib/calendar';
@@ -39,7 +40,7 @@ export function useCurrentBudgets(anchor = new Date()) {
   const scope = periodScope(anchor, system);
 
   return useQuery({
-    queryKey: ['budgets', userId, scope],
+    queryKey: qk.budgets.forPeriod(userId, scope),
     enabled: !!userId,
     queryFn: async (): Promise<BudgetWithSpend[]> => {
       const [{ data: budgets, error: bErr }, { data: txns, error: tErr }] = await Promise.all([
