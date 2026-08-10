@@ -1,19 +1,21 @@
 import { useMemo, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { format, startOfMonth, isSameMonth } from 'date-fns';
 import {
   Screen, TopBar, Avatar, Card, Text, Section, Icon, MonthPager, EmptyState,
 } from '@/components/ui';
 import { Donut, DonutSlice } from '@/components/charts/Donut';
 import { BarChart, BarDatum } from '@/components/charts/BarChart';
+import { ProgressBar } from '@/components/charts/ProgressBar';
 import { useTheme } from '@/theme';
 import { radius, spacing } from '@/theme/tokens';
 import type { Color } from '@/theme/tokens';
 import { useCategoryBreakdown, useSpendTrend } from '@/features/insights/queries';
+import { useExpenseTracking } from '@/features/insights/tracking';
 import { useCategoryMap } from '@/features/categories/queries';
 import { useProfile } from '@/features/profile/queries';
 import { useCurrency } from '@/features/preferences/store';
+import { useCalendar } from '@/features/preferences/calendar';
 import { formatCurrency, currencySymbol } from '@/lib/formatters';
 
 const ROTATING_COLORS: Color[] = ['primary', 'secondary', 'tertiary', 'primaryDim', 'primaryContainer'];
@@ -34,9 +36,11 @@ export default function Insights() {
   const { colors } = useTheme();
   const profile = useProfile();
   const currency = useCurrency();
-  const [anchor, setAnchor] = useState(() => startOfMonth(new Date()));
+  const calendar = useCalendar();
+  const [anchor, setAnchor] = useState(() => calendar.startOfPeriod(new Date()));
   const breakdown = useCategoryBreakdown(anchor);
   const trend = useSpendTrend(6);
+  const tracking = useExpenseTracking(anchor);
   const categoryMap = useCategoryMap();
 
   const slices: DonutSlice[] = useMemo(() => {
@@ -52,14 +56,16 @@ export default function Insights() {
   const trendBars: BarDatum[] = useMemo(() => {
     const today = new Date();
     return (trend.data ?? []).map((r) => {
-      const monthDate = new Date(r.month + '-01T00:00:00');
+      // `anchor` is an instant inside the period, so the label renders in
+      // whichever calendar the user picked without re-deriving boundaries.
+      const periodDate = new Date(r.anchor);
       return {
-        label: format(monthDate, 'MMM'),
+        label: calendar.formatPeriodShort(periodDate),
         value: r.total,
-        highlight: isSameMonth(monthDate, today),
+        highlight: calendar.isSamePeriod(periodDate, today),
       };
     });
-  }, [trend.data]);
+  }, [trend.data, calendar]);
 
   const trendHasAnyData = trendBars.some((b) => b.value > 0);
   const trendAvg =
@@ -78,10 +84,11 @@ export default function Insights() {
       />
       <Screen
         contentStyle={styles.content}
-        refreshing={breakdown.isFetching || trend.isFetching}
+        refreshing={breakdown.isFetching || trend.isFetching || tracking.isFetching}
         onRefresh={() => {
           breakdown.refetch();
           trend.refetch();
+          tracking.refetch();
         }}
       >
         <Card tone="container" padding={spacing[4]} radiusToken="lg">
@@ -93,7 +100,7 @@ export default function Insights() {
             {slices.length === 0 ? (
               <EmptyState
                 icon="pie_chart"
-                title={`Nothing tracked for ${format(anchor, 'MMMM')}`}
+                title={`Nothing tracked for ${calendar.formatMonthName(anchor)}`}
                 body="Expenses you log will appear here as a breakdown."
               />
             ) : (
@@ -103,7 +110,7 @@ export default function Insights() {
                   size={160}
                   strokeWidth={16}
                   centerTop={formatCurrency(totalSpend, currency).replace(/\.\d{2}$/, '')}
-                  centerBottom={format(anchor, 'MMM yyyy')}
+                  centerBottom={calendar.formatPeriod(anchor)}
                 />
                 <View style={styles.legend}>
                   {slices.map((s, i) => (
@@ -136,7 +143,7 @@ export default function Insights() {
                 <View style={styles.trendHeader}>
                   <View style={{ flex: 1 }}>
                     <Text variant="labelSm" color="onSurfaceVariant">
-                      Last 6 months · average
+                      Last 6 periods · average
                     </Text>
                     <Text variant="headlineSm" color="onSurface">
                       {formatCurrency(trendAvg, currency)}
@@ -164,40 +171,74 @@ export default function Insights() {
           </Card>
         </Section>
 
-        <Section title="Top Categories">
-          {(breakdown.data ?? []).length === 0 ? (
+        {/*
+          Per-expense-type tracking. Unlike the breakdown above (a single
+          snapshot), each row compares this period against the last and shows
+          budget consumption, so the list answers "what's drifting?" not just
+          "what's big?". Tapping a row opens the full tracker for that type.
+        */}
+        <Section title="Tracking by Expense Type">
+          {(tracking.data?.rows ?? []).length === 0 ? (
             <Card tone="low" padding={spacing[4]}>
               <Text variant="bodyMd" color="onSurfaceVariant" center>
-                Once you start logging expenses, the biggest categories will list here.
+                Once you start logging expenses, each type will be tracked here — spend
+                versus last period, and how much of its budget is left.
               </Text>
             </Card>
           ) : (
             <View style={{ gap: spacing[3] }}>
-              {(breakdown.data ?? []).slice(0, 5).map((row, i) => {
+              {(tracking.data?.rows ?? []).map((row, i) => {
                 const cat = categoryMap.byId.get(row.categoryId);
-                const pct = totalSpend > 0 ? row.total / totalSpend : 0;
                 const sliceColor = (ROTATING_COLORS[i % ROTATING_COLORS.length] ?? 'primary') as Color;
+                const overBudget = row.budgetRatio !== null && row.budgetRatio > 1;
                 return (
-                  <Card key={row.categoryId} tone="low" padding={spacing[4]}>
-                    <View style={styles.topRow}>
-                      <View style={styles.left}>
-                        <View style={[styles.tile, { backgroundColor: colors.surfaceContainerHighest }]}>
-                          <Icon name={cat?.icon ?? 'label'} size={20} color={sliceColor} />
+                  <Pressable
+                    key={row.categoryId}
+                    onPress={() => router.push(`/category/${row.categoryId}`)}
+                  >
+                    <Card tone="low" padding={spacing[4]}>
+                      <View style={styles.topRow}>
+                        <View style={styles.left}>
+                          <View style={[styles.tile, { backgroundColor: colors.surfaceContainerHighest }]}>
+                            <Icon name={cat?.icon ?? 'label'} size={20} color={sliceColor} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text variant="titleSm" color="onSurface" numberOfLines={1}>
+                              {cat?.name ?? 'Other'}
+                            </Text>
+                            <Text variant="bodySm" color="onSurfaceVariant" numberOfLines={1}>
+                              {row.count === 0
+                                ? 'Nothing logged this period'
+                                : `${row.count} ${row.count === 1 ? 'entry' : 'entries'} · ${Math.round(row.share * 100)}% of spend`}
+                            </Text>
+                          </View>
                         </View>
-                        <View style={{ flex: 1 }}>
-                          <Text variant="titleSm" color="onSurface" numberOfLines={1}>
-                            {cat?.name ?? 'Other'}
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text variant="titleSm" color="onSurface">
+                            {formatCurrency(row.total, currency)}
                           </Text>
-                          <Text variant="bodySm" color="onSurfaceVariant">
-                            {Math.round(pct * 100)}% of spend
-                          </Text>
+                          <DeltaChip delta={row.delta} previous={row.previousTotal} />
                         </View>
                       </View>
-                      <Text variant="titleSm" color="onSurface">
-                        {formatCurrency(row.total, currency)}
-                      </Text>
-                    </View>
-                  </Card>
+
+                      {row.budgetRatio !== null && (
+                        <View style={{ marginTop: spacing[3], gap: spacing[1] }}>
+                          <ProgressBar
+                            value={row.budgetRatio}
+                            color={overBudget ? 'tertiary' : 'primary'}
+                            height={6}
+                          />
+                          <Text
+                            variant="labelSm"
+                            color={overBudget ? 'tertiary' : 'onSurfaceVariant'}
+                          >
+                            {Math.round(row.budgetRatio * 100)}% of{' '}
+                            {formatCurrency(row.budget ?? 0, currency)} budget
+                          </Text>
+                        </View>
+                      )}
+                    </Card>
+                  </Pressable>
                 );
               })}
             </View>
@@ -205,6 +246,37 @@ export default function Insights() {
         </Section>
       </Screen>
     </View>
+  );
+}
+
+/**
+ * Period-over-period change label. Spending *less* is good, so a negative
+ * delta reads as the positive (secondary) colour — the inverse of a stock
+ * ticker, and the opposite of what a naive sign check would produce.
+ *
+ * A `null` delta means the previous period was zero. A percentage from a zero
+ * baseline is infinite, so we say "new" instead of rendering "+∞%".
+ */
+function DeltaChip({ delta, previous }: { delta: number | null; previous: number }) {
+  if (delta === null) {
+    return (
+      <Text variant="labelSm" color="onSurfaceVariant">
+        {previous === 0 ? 'New this period' : '—'}
+      </Text>
+    );
+  }
+  if (Math.abs(delta) < 0.005) {
+    return (
+      <Text variant="labelSm" color="onSurfaceVariant">
+        Flat vs last
+      </Text>
+    );
+  }
+  const up = delta > 0;
+  return (
+    <Text variant="labelSm" color={up ? 'tertiary' : 'secondary'}>
+      {up ? '▲' : '▼'} {Math.abs(Math.round(delta * 100))}% vs last
+    </Text>
   );
 }
 

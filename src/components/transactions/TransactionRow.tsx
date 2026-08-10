@@ -3,7 +3,8 @@ import { useColors } from '@/theme';
 import { spacing, radius } from '@/theme/tokens';
 import { Text } from '@/components/ui/Text';
 import { Icon } from '@/components/ui/Icon';
-import { formatDate, formatSignedAmount } from '@/lib/formatters';
+import { formatSignedAmount } from '@/lib/formatters';
+import { useCalendar } from '@/features/preferences/calendar';
 import type { Category, Transaction } from '@/types/database';
 
 type Props = {
@@ -15,6 +16,7 @@ type Props = {
 
 export function TransactionRow({ transaction, category, currency = 'USD', onPress }: Props) {
   const colors = useColors();
+  const calendar = useCalendar();
   const isIncome = transaction.kind === 'income';
   const amountColor = isIncome ? 'secondary' : transaction.kind === 'expense' ? 'tertiary' : 'onSurface';
 
@@ -35,7 +37,7 @@ export function TransactionRow({ transaction, category, currency = 'USD', onPres
             {transaction.merchant ?? category?.name ?? 'Transaction'}
           </Text>
           <Text variant="bodySm" color="onSurfaceVariant" numberOfLines={1}>
-            {(category?.name ?? '—') + ' • ' + formatDate(transaction.occurred_at)}
+            {(category?.name ?? '—') + ' • ' + calendar.formatRelativeDate(new Date(transaction.occurred_at))}
           </Text>
         </View>
       </View>

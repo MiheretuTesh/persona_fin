@@ -1,6 +1,13 @@
 import { format, isToday, isYesterday, differenceInDays } from 'date-fns';
 
 /**
+ * NOTE ON DATES: `formatDate` below renders Gregorian only and is kept for
+ * calendar-agnostic contexts. Anything user-facing should go through
+ * `useCalendar()` (`src/features/preferences/calendar.ts`) so it honours the
+ * user's Gregorian/Ethiopian preference.
+ */
+
+/**
  * Returns the display symbol for any ISO 4217 currency code — "$", "€", "£",
  * or the ISO code itself when there's no canonical glyph (e.g. "ETB", "KES").
  * Cached because `Intl.NumberFormat` is allocation-heavy on Hermes.

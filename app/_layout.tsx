@@ -18,6 +18,7 @@ import { useAuth, wireAuthAutoRefresh } from '@/features/auth/store';
 import { BiometricLockOverlay } from '@/features/auth/BiometricLockOverlay';
 import { useHydratePreferencesFromProfile } from '@/features/preferences/sync';
 import { useNotificationEngine } from '@/features/notifications/engine';
+import { useNotificationRouting } from '@/features/notifications/routing';
 import { InAppBannerHost } from '@/components/ui/InAppBannerHost';
 import { ThemeProvider, useTheme } from '@/theme';
 
@@ -123,6 +124,9 @@ function AuthenticatedShell() {
   // evaluates budget/income rules whenever finance data changes, and feeds
   // the in-app banner queue. Mounted here so it only runs while signed in.
   useNotificationEngine();
+  // Sends a tapped notification to the inbox (or its own `route`), including
+  // the one that cold-started the app.
+  useNotificationRouting();
   return (
     <>
       <ThemedStatusBar />
@@ -171,6 +175,7 @@ function ThemedStack() {
           contentStyle: { backgroundColor: colors.surfaceContainerLow },
         }}
       />
+      <Stack.Screen name="category/[id]" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen
         name="notifications"
         options={{

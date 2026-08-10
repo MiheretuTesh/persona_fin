@@ -1,28 +1,49 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { startOfMonth, endOfMonth, startOfDay, subDays, format } from 'date-fns';
+import { startOfDay, subDays, format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import { qk } from '@/lib/queryKeys';
 import { useAuth } from '@/features/auth/store';
+import { useCalendarSystem } from '@/features/preferences/store';
+import { endOfPeriod, periodScope, startOfPeriod } from '@/lib/calendar';
 import type { Transaction } from '@/types/database';
 
 const PAGE_SIZE = 200;
 
+/**
+ * Transactions for a period, or the most recent N across all time.
+ *
+ * The `month` anchor is any date *inside* the period you want; the actual
+ * boundaries come from `startOfPeriod`/`endOfPeriod`, which respect the user's
+ * calendar preference. On the Ethiopian calendar a "month" runs e.g.
+ * ነሐሴ 1 → ነሐሴ 30, which straddles two Gregorian months.
+ *
+ * IMPORTANT — the query key uses `periodScope(anchor)`, not the anchor's
+ * timestamp. Anchors are frequently constructed inline as `new Date()`, which
+ * produces a fresh millisecond value on every render; keying on that spawned a
+ * brand-new cache entry per render, so the query never settled, `isLoading`
+ * was permanently true for consumers, and the cache grew without bound. The
+ * period scope collapses every instant within a period onto one stable key.
+ */
 export function useTransactions(opts: { month?: Date; limit?: number } = {}) {
   const userId = useAuth((s) => s.user?.id);
+  const system = useCalendarSystem();
   const month = opts.month;
+  const limit = opts.limit ?? PAGE_SIZE;
+  const scope = month ? periodScope(month, system) : 'all';
+
   return useQuery({
-    queryKey: ['transactions', userId, month?.toISOString() ?? 'all', opts.limit ?? PAGE_SIZE],
+    queryKey: ['transactions', userId, scope, limit],
     enabled: !!userId,
     queryFn: async (): Promise<Transaction[]> => {
       let q = supabase
         .from('transactions')
         .select('*')
         .order('occurred_at', { ascending: false })
-        .limit(opts.limit ?? PAGE_SIZE);
+        .limit(limit);
       if (month) {
         q = q
-          .gte('occurred_at', startOfMonth(month).toISOString())
-          .lte('occurred_at', endOfMonth(month).toISOString());
+          .gte('occurred_at', startOfPeriod(month, system).toISOString())
+          .lte('occurred_at', endOfPeriod(month, system).toISOString());
       }
       const { data, error } = await q;
       if (error) throw error;
@@ -37,8 +58,8 @@ export function useRecentTransactions(limit = 5) {
 }
 
 /**
- * Month totals — sums income and expense for the given month (always absolute
- * values on the expense side so the UI can show e.g. $3,120 instead of -$3,120).
+ * Period totals — sums income and expense for the period containing `month`,
+ * both as positive numbers so the UI can show e.g. $3,120 instead of -$3,120.
  * Note: kind is the source of truth, not the sign of `amount` — a user might
  * have miskeyed a negative income at some point.
  */
@@ -90,19 +111,17 @@ export function useTransaction(id: string | undefined) {
 /**
  * Last-N-days income & expense bucketed by day, oldest → newest.
  *
- * Used for the dashboard sparklines. Returns two parallel arrays so the
- * Sparkline component can render either independently.
- *
- * Why we're not just deriving this from `useTransactions`: the dashboard
- * mounts before the user touches any month, so we want a tight query that
- * pulls only the last N days regardless of which month is being viewed.
+ * Used for the dashboard sparklines. Returns two parallel arrays plus the ISO
+ * day keys, so callers can render axis labels in whichever calendar the user
+ * picked — the query itself stays calendar-agnostic because "the last 7 days"
+ * means the same 7 days either way.
  */
 export function useDailyTotals(days = 7) {
   const userId = useAuth((s) => s.user?.id);
   return useQuery({
     queryKey: ['transactions', 'daily', userId, days],
     enabled: !!userId,
-    queryFn: async (): Promise<{ income: number[]; expense: number[]; labels: string[] }> => {
+    queryFn: async (): Promise<{ income: number[]; expense: number[]; days: string[] }> => {
       const start = startOfDay(subDays(new Date(), days - 1));
       const { data, error } = await supabase
         .from('transactions')
@@ -116,13 +135,13 @@ export function useDailyTotals(days = 7) {
       // bug class as the budget date filter).
       const incomeBuckets = new Map<string, number>();
       const expenseBuckets = new Map<string, number>();
-      const labels: string[] = [];
+      const dayKeys: string[] = [];
       for (let i = 0; i < days; i++) {
         const d = startOfDay(subDays(new Date(), days - 1 - i));
         const key = format(d, 'yyyy-MM-dd');
         incomeBuckets.set(key, 0);
         expenseBuckets.set(key, 0);
-        labels.push(format(d, 'EEE'));
+        dayKeys.push(key);
       }
 
       for (const t of data ?? []) {
@@ -138,7 +157,7 @@ export function useDailyTotals(days = 7) {
       return {
         income: [...incomeBuckets.values()],
         expense: [...expenseBuckets.values()],
-        labels,
+        days: dayKeys,
       };
     },
   });

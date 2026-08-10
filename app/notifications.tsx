@@ -2,12 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet, Pressable, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { format, parseISO } from 'date-fns';
-import { Screen, TopBar, Card, Section, Text, Icon, EmptyState, Button } from '@/components/ui';
+import { Screen, TopBar, Card, Section, Text, Icon, EmptyState } from '@/components/ui';
 import { useTheme } from '@/theme';
 import { spacing, radius } from '@/theme/tokens';
 import { useBanners } from '@/features/notifications/store';
 import { clearDedup, getAllFired, invalidateDedupCache } from '@/features/notifications/dedup';
 import { useCategoryMap } from '@/features/categories/queries';
+import { useCalendar, type Calendar } from '@/features/preferences/calendar';
 
 /**
  * Notifications inbox.
@@ -26,6 +27,7 @@ export default function NotificationsScreen() {
   const banners = useBanners((s) => s.banners);
   const dismiss = useBanners((s) => s.dismiss);
   const categories = useCategoryMap();
+  const calendar = useCalendar();
 
   const [history, setHistory] = useState<{ key: string; firedAt: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,7 +130,7 @@ export default function NotificationsScreen() {
               >
                 <View style={{ gap: spacing[2] }}>
                   {history.map((h) => {
-                    const parsed = parseDedupKey(h.key, categories.byId);
+                    const parsed = parseDedupKey(h.key, categories.byId, calendar);
                     return (
                       <Card key={h.key} tone="low" padding={spacing[4]} style={styles.itemCard}>
                         <View
@@ -144,7 +146,7 @@ export default function NotificationsScreen() {
                             {parsed.title}
                           </Text>
                           <Text variant="bodySm" color="onSurfaceVariant">
-                            {formatFiredAt(h.firedAt)}
+                            {[parsed.period, formatFiredAt(h.firedAt)].filter(Boolean).join(' · ')}
                           </Text>
                         </View>
                       </Card>
@@ -191,34 +193,53 @@ function tileBg(tone: Tone, mode: 'dark' | 'light'): string {
   return 'rgba(0,67,84,0.12)';
 }
 
+type ParsedAlert = { title: string; tone: Tone; icon: string; period: string };
+
 /**
- * Turns a dedup key like `budget:hit100:<catId>:2026-05` into a friendly
- * `{ title, tone, icon }`. Falls back to a generic label if the key shape
- * is unrecognised so we never break the inbox UI.
+ * Turns a dedup key like `budget:hit100:<catId>:g:2026-05` into a friendly
+ * `{ title, tone, icon, period }`. Falls back to a generic label if the key
+ * shape is unrecognised so we never break the inbox UI.
+ *
+ * Key layout is `<subject>:<rule>[:<categoryId>]:<calendarTag>:<periodKey>`.
+ * The trailing two segments are the calendar-scoped period (`g:2026-05` /
+ * `e:2018-09`) written by `periodScope`, which is why the period is read off
+ * the *end* rather than a fixed index — budget keys carry an extra segment.
  */
 function parseDedupKey(
   key: string,
   categoryById: Map<string, { name: string }>,
-): { title: string; tone: Tone; icon: string } {
+  calendar: Calendar,
+): ParsedAlert {
   const parts = key.split(':');
-  const [scope, rule] = parts;
+  const [subject, rule] = parts;
 
-  if (scope === 'budget') {
+  // Last two segments are the period scope, when the key carries one. Older
+  // keys written before calendar support have a bare `2026-05` tail.
+  const tail = parts.slice(-2).join(':');
+  const period = /^[ge]:\d{4}-\d{2}$/.test(tail)
+    ? calendar.formatPeriodKey(tail)
+    : /^\d{4}-\d{2}$/.test(parts[parts.length - 1] ?? '')
+      ? calendar.formatPeriodKey(parts[parts.length - 1]!)
+      : '';
+
+  const of = (title: string, tone: Tone, icon: string): ParsedAlert => ({ title, tone, icon, period });
+
+  if (subject === 'budget') {
     const catId = parts[2] ?? '';
     const name = categoryById.get(catId)?.name ?? 'a category';
-    if (rule === 'over120') return { title: `${name}: well over budget`, tone: 'danger', icon: 'error' };
-    if (rule === 'hit100') return { title: `${name}: budget reached`, tone: 'danger', icon: 'block' };
-    if (rule === 'warn80') return { title: `${name}: 80%+ of budget used`, tone: 'warn', icon: 'warning' };
+    if (rule === 'over120') return of(`${name}: well over budget`, 'danger', 'error');
+    if (rule === 'hit100') return of(`${name}: budget reached`, 'danger', 'block');
+    if (rule === 'warn80') return of(`${name}: 80%+ of budget used`, 'warn', 'warning');
   }
-  if (scope === 'income') {
-    if (rule === 'over') return { title: 'Expenses exceeded income', tone: 'danger', icon: 'trending_down' };
-    if (rule === 'near_overdraw') return { title: 'Expenses near income limit', tone: 'danger', icon: 'priority_high' };
-    if (rule === 'warn80') return { title: '80%+ of income spent', tone: 'warn', icon: 'savings' };
+  if (subject === 'income') {
+    if (rule === 'over') return of('Expenses exceeded income', 'danger', 'trending_down');
+    if (rule === 'near_overdraw') return of('Expenses near income limit', 'danger', 'priority_high');
+    if (rule === 'warn80') return of('80%+ of income spent', 'warn', 'savings');
   }
-  if (scope === 'month') {
-    return { title: 'Month is wrapping up', tone: 'info', icon: 'event' };
+  if (subject === 'month') {
+    return of('Period is wrapping up', 'info', 'event');
   }
-  return { title: key, tone: 'info', icon: 'info' };
+  return of(key, 'info', 'info');
 }
 
 function formatFiredAt(iso: string): string {

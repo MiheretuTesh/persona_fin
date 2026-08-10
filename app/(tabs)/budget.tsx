@@ -12,6 +12,7 @@ import { useCreateBudget, useUpdateBudget, useDeleteBudget } from '@/features/bu
 import { useCategoriesByKind, useCategoryMap } from '@/features/categories/queries';
 import { useProfile } from '@/features/profile/queries';
 import { useCurrency } from '@/features/preferences/store';
+import { useCalendar } from '@/features/preferences/calendar';
 import { formatCurrency, currencySymbol } from '@/lib/formatters';
 
 export default function Budget() {
@@ -19,6 +20,7 @@ export default function Budget() {
   const { colors } = useTheme();
   const profile = useProfile();
   const currency = useCurrency();
+  const calendar = useCalendar();
   const budgets = useCurrentBudgets();
   const expenseCategories = useCategoriesByKind('expense');
   const categoryMap = useCategoryMap();
@@ -86,7 +88,7 @@ export default function Budget() {
       <TopBar
         leading={<Avatar name={profile.data?.display_name ?? undefined} />}
         title="Budget Planner"
-        subtitle="This month"
+        subtitle={calendar.formatPeriod(new Date())}
         trailingIcon="notifications"
         onTrailingPress={() => router.push('/notifications')}
         onLeadingPress={() => router.push('/(tabs)/settings')}
@@ -95,7 +97,7 @@ export default function Budget() {
         {/* Roll-up */}
         <Card tone="high" padding={spacing[6]} vault>
           <Text variant="labelSm" color="onSurfaceVariant">
-            Monthly Limit
+            Limit for {calendar.formatPeriod(new Date())}
           </Text>
           <Text variant="displaySm" color="onSurface">
             {formatCurrency(totalBudget, currency)}

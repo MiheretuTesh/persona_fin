@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { startOfMonth, isSameMonth, subMonths } from 'date-fns';
 import {
   Screen, TopBar, Avatar, Section, Card, Text, GradientHero, Icon, EmptyState, MonthPager, Button,
 } from '@/components/ui';
@@ -16,6 +15,7 @@ import {
 } from '@/features/transactions/queries';
 import { useCategoryMap } from '@/features/categories/queries';
 import { useCurrency } from '@/features/preferences/store';
+import { useCalendar } from '@/features/preferences/calendar';
 import { formatCurrency } from '@/lib/formatters';
 
 export default function Dashboard() {
@@ -24,11 +24,12 @@ export default function Dashboard() {
   const profile = useProfile();
   const wallets = useWallets();
   const recent = useRecentTransactions(5);
-  const [anchor, setAnchor] = useState(() => startOfMonth(new Date()));
+  const calendar = useCalendar();
+  const [anchor, setAnchor] = useState(() => calendar.startOfPeriod(new Date()));
   const month = useMonthTotals(anchor);
-  // Previous month — same hook with a shifted anchor. React Query keys this
+  // Previous period — same hook with a shifted anchor. React Query keys this
   // separately so it caches independently and refetches on its own schedule.
-  const prevMonth = useMonthTotals(subMonths(anchor, 1));
+  const prevMonth = useMonthTotals(calendar.addPeriods(anchor, -1));
   const lifetime = useLifetimeTotals();
   const daily = useDailyTotals(7);
   const categories = useCategoryMap();
@@ -54,7 +55,7 @@ export default function Dashboard() {
     return Number.isFinite(raw) ? Math.max(-99, Math.min(99, raw)) : 0;
   }, [month.net, lifetime.data?.lifetimeNet, walletsStartingBalance]);
 
-  const isCurrentMonth = isSameMonth(anchor, new Date());
+  const isCurrentMonth = calendar.isSamePeriod(anchor, new Date());
 
   // Month-over-month deltas. We use a percentage when there's a non-zero
   // baseline; for "from zero" we fall back to a flat absolute label so we
@@ -159,7 +160,7 @@ export default function Dashboard() {
           <MonthPager value={anchor} onChange={setAnchor} />
         </Card>
 
-        <Section title="Monthly Summary">
+        <Section title={`${calendar.formatMonthName(anchor)} Summary`}>
           <View style={styles.grid}>
             <Card tone="low" padding={spacing[5]} style={{ flex: 1, gap: spacing[4] }}>
               <View style={styles.cardHeader}>
@@ -233,7 +234,7 @@ export default function Dashboard() {
           <Card tone="low" padding={spacing[4]}>
             <View style={styles.netRow}>
               <Text variant="labelMd" color="onSurfaceVariant">
-                Net this month
+                Net this period
               </Text>
               <Text variant="titleMd" color={month.net >= 0 ? 'secondary' : 'tertiary'}>
                 {(month.net >= 0 ? '+' : '') + formatCurrency(month.net, currency)}
@@ -242,7 +243,7 @@ export default function Dashboard() {
           </Card>
         </Section>
 
-        <Section title={isCurrentMonth ? 'Recent Transactions' : `Transactions in ${formatMonthLabel(anchor)}`} trailing="See All" onTrailingPress={() => router.push('/(tabs)/history')}>
+        <Section title={isCurrentMonth ? 'Recent Transactions' : `Transactions in ${calendar.formatPeriod(anchor)}`} trailing="See All" onTrailingPress={() => router.push('/(tabs)/history')}>
           {(isCurrentMonth ? recent.data : month.data)?.length ? (
             <View style={{ gap: 2 }}>
               {(isCurrentMonth ? recent.data! : month.data!).slice(0, 5).map((t) => (
@@ -260,7 +261,7 @@ export default function Dashboard() {
               <EmptyState
                 icon="receipt_long"
                 title="No transactions yet"
-                body={isCurrentMonth ? 'Tap the Add button in the tab bar to record your first.' : 'Nothing to show for this month.'}
+                body={isCurrentMonth ? 'Tap the Add button in the tab bar to record your first.' : 'Nothing to show for this period.'}
               />
             </Card>
           )}
@@ -281,7 +282,7 @@ function salutation(d: Date) {
 }
 
 /**
- * Month-over-month change as a small object { pct, label }.
+ * Period-over-period change as a small object { pct, label }.
  *   - When prev is 0 and now > 0: return null (nothing meaningful to compare).
  *   - When both are 0: return null.
  *   - Otherwise: return signed % capped at ±999 to avoid silly numbers.
@@ -293,10 +294,6 @@ function pctChange(now: number, prev: number): { pct: number; label: string } | 
   const capped = Math.max(-999, Math.min(999, raw));
   const sign = capped > 0 ? '+' : '';
   return { pct: capped, label: `${sign}${capped.toFixed(0)}%` };
-}
-
-function formatMonthLabel(d: Date) {
-  return d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 }
 
 const styles = StyleSheet.create({

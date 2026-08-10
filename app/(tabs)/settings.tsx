@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { View, StyleSheet, Switch, Alert, Pressable } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { View, StyleSheet, Switch, Alert, Pressable, Linking, AppState } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, TopBar, Avatar, Card, Text, Icon, Button, Section } from '@/components/ui';
 import { useTheme } from '@/theme';
@@ -16,10 +16,19 @@ import {
   setBiometricEnabled,
 } from '@/features/auth/biometrics';
 import { CurrencyPickerModal } from '@/components/settings/CurrencyPickerModal';
+import { CalendarPickerModal } from '@/components/settings/CalendarPickerModal';
 import { ConfirmDestructiveModal } from '@/components/settings/ConfirmDestructiveModal';
 import { NotificationDevPanel } from '@/components/settings/NotificationDevPanel';
 import { usePreferences } from '@/features/preferences/store';
+import { useCalendar } from '@/features/preferences/calendar';
+import {
+  ensureNotificationPermission,
+  getNotificationPermission,
+  type PermissionSnapshot,
+} from '@/features/notifications/permissions';
+import { cancelAllScheduledNotifications } from '@/features/notifications/local';
 import { useWipeFinanceData } from '@/features/sync/wipe';
+import type { CalendarScript, CalendarSystem } from '@/lib/calendar';
 import * as LocalAuthentication from 'expo-local-authentication';
 
 export default function Settings() {
@@ -33,7 +42,9 @@ export default function Settings() {
   const [bioEnabled, setBioEnabledState] = useState(false);
   const [bioType, setBioType] = useState<'face' | 'touch' | 'none'>('none');
   const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
+  const [calendarPickerOpen, setCalendarPickerOpen] = useState(false);
   const [wipeOpen, setWipeOpen] = useState(false);
+  const [notifPermission, setNotifPermission] = useState<PermissionSnapshot | null>(null);
   const wipe = useWipeFinanceData();
 
   useEffect(() => {
@@ -50,6 +61,23 @@ export default function Settings() {
       setBioType(t);
     })();
   }, []);
+
+  // OS-level notification permission. Re-read on foreground, because the only
+  // way back from a hard denial is the system settings app — and returning
+  // from it must not leave this screen showing stale "blocked" copy.
+  const refreshNotifPermission = useCallback(() => {
+    getNotificationPermission()
+      .then(setNotifPermission)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    refreshNotifPermission();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshNotifPermission();
+    });
+    return () => sub.remove();
+  }, [refreshNotifPermission]);
 
   const bioAvailable = bioHasHardware && bioEnrolled;
   const bioHint = !bioHasHardware
@@ -104,6 +132,87 @@ export default function Settings() {
       },
     );
   };
+
+  const calendar = useCalendar();
+  const calendarSystem = usePreferences((s) => s.calendar);
+  const calendarScript = usePreferences((s) => s.calendarScript);
+  const setCalendar = usePreferences((s) => s.setCalendar);
+  const setCalendarScript = usePreferences((s) => s.setCalendarScript);
+
+  /**
+   * Switching calendars redefines every period boundary in the app, so the
+   * cached month totals, budgets, insights, and tracking rows are all keyed to
+   * the *old* calendar. The queries key on the calendar-scoped period, so they
+   * refetch on their own — we just mirror the choice to Supabase so it follows
+   * the user to other devices.
+   */
+  const pickCalendar = (system: CalendarSystem) => {
+    if (system === calendarSystem) return;
+    setCalendar(system);
+    updateProfile.mutate(
+      { calendar_system: system },
+      {
+        onError: (err: any) => {
+          Alert.alert(
+            'Saved on this device, but not synced',
+            err?.message ?? 'Your calendar is set locally. We could not reach Supabase to sync it.',
+          );
+        },
+      },
+    );
+  };
+
+  const pickCalendarScript = (script: CalendarScript) => {
+    if (script === calendarScript) return;
+    setCalendarScript(script);
+    updateProfile.mutate({ calendar_script: script });
+  };
+
+  const pushEnabled = usePreferences((s) => s.pushEnabled);
+  const inAppEnabled = usePreferences((s) => s.inAppEnabled);
+  const setPushEnabled = usePreferences((s) => s.setPushEnabled);
+  const setInAppEnabled = usePreferences((s) => s.setInAppEnabled);
+
+  /**
+   * Turning push on has to clear the OS permission gate too — a preference
+   * that says "on" while the system says "blocked" is exactly the silent
+   * failure this screen exists to prevent.
+   */
+  const togglePush = async (next: boolean) => {
+    if (!next) {
+      setPushEnabled(false);
+      updateProfile.mutate({ push_enabled: false });
+      await cancelAllScheduledNotifications();
+      return;
+    }
+    const granted = await ensureNotificationPermission();
+    refreshNotifPermission();
+    if (!granted) {
+      Alert.alert(
+        'Notifications are blocked',
+        'Equilibrium needs notification permission to send budget alerts. Enable it in your device settings, then come back.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Open settings', onPress: () => Linking.openSettings().catch(() => {}) },
+        ],
+      );
+      return;
+    }
+    setPushEnabled(true);
+    updateProfile.mutate({ push_enabled: true });
+  };
+
+  const toggleInApp = (next: boolean) => {
+    setInAppEnabled(next);
+    updateProfile.mutate({ inapp_enabled: next });
+  };
+
+  const pushBlocked = notifPermission !== null && !notifPermission.granted;
+  const pushHint = !pushEnabled
+    ? 'Budget and spending alerts are muted'
+    : pushBlocked
+      ? 'Blocked in device settings — tap to fix'
+      : 'Budget warnings, limit alerts, and period-end reminders';
 
   const confirmSignOut = () =>
     Alert.alert('Sign out', 'Your session on this device will be cleared.', [
@@ -212,7 +321,60 @@ export default function Settings() {
               hint={currency}
               onPress={() => setCurrencyPickerOpen(true)}
             />
-            <Row icon="notifications" label="Notifications" hint="Coming soon" onPress={() => {}} />
+            <Row
+              icon="calendar_month"
+              label="Calendar"
+              hint={
+                calendarSystem === 'ethiopian'
+                  ? `Ethiopian · ${calendar.formatPeriod(new Date())}`
+                  : `Gregorian · ${calendar.formatPeriod(new Date())}`
+              }
+              onPress={() => setCalendarPickerOpen(true)}
+            />
+          </Card>
+        </Section>
+
+        <Section title="Notifications">
+          <Card tone="low" padding={0}>
+            <Row
+              icon="notifications_active"
+              label="Push alerts"
+              hint={pushHint}
+              onPress={pushBlocked && pushEnabled ? () => Linking.openSettings().catch(() => {}) : undefined}
+              control={
+                <Switch
+                  value={pushEnabled && !pushBlocked}
+                  onValueChange={togglePush}
+                  trackColor={{ true: colors.primary, false: colors.surfaceContainerHigh }}
+                  thumbColor={colors.surface}
+                  ios_backgroundColor={colors.surfaceContainerHigh}
+                />
+              }
+            />
+            <Row
+              icon="campaign"
+              label="In-app banners"
+              hint={
+                inAppEnabled
+                  ? 'Alerts slide in over the app while you use it'
+                  : 'Alerts will only reach you as push notifications'
+              }
+              control={
+                <Switch
+                  value={inAppEnabled}
+                  onValueChange={toggleInApp}
+                  trackColor={{ true: colors.primary, false: colors.surfaceContainerHigh }}
+                  thumbColor={colors.surface}
+                  ios_backgroundColor={colors.surfaceContainerHigh}
+                />
+              }
+            />
+            <Row
+              icon="inbox"
+              label="Alert history"
+              hint="Everything Equilibrium has sent you"
+              onPress={() => router.push('/notifications')}
+            />
           </Card>
         </Section>
 
@@ -265,6 +427,14 @@ export default function Settings() {
         current={currency}
         onClose={() => setCurrencyPickerOpen(false)}
         onPick={pickCurrency}
+      />
+      <CalendarPickerModal
+        visible={calendarPickerOpen}
+        system={calendarSystem}
+        script={calendarScript}
+        onClose={() => setCalendarPickerOpen(false)}
+        onPickSystem={pickCalendar}
+        onPickScript={pickCalendarScript}
       />
       <ConfirmDestructiveModal
         visible={wipeOpen}

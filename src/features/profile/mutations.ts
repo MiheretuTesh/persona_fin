@@ -3,7 +3,19 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/features/auth/store';
 import type { Profile } from '@/types/database';
 
-type ProfileUpdate = Partial<Pick<Profile, 'display_name' | 'avatar_url' | 'currency' | 'biometric_enabled'>>;
+type ProfileUpdate = Partial<
+  Pick<
+    Profile,
+    | 'display_name'
+    | 'avatar_url'
+    | 'currency'
+    | 'biometric_enabled'
+    | 'calendar_system'
+    | 'calendar_script'
+    | 'push_enabled'
+    | 'inapp_enabled'
+  >
+>;
 
 /**
  * Upserts the current user's profile.

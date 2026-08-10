@@ -8,7 +8,8 @@ import {
   cancelAllScheduledNotifications,
 } from '@/features/notifications/local';
 import { ensureNotificationPermission } from '@/features/notifications/permissions';
-import { clearDedup } from '@/features/notifications/dedup';
+import { clearDedup, invalidateDedupCache } from '@/features/notifications/dedup';
+import { useCalendar } from '@/features/preferences/calendar';
 
 /**
  * Dev-only test surface for the notification system.
@@ -19,10 +20,13 @@ import { clearDedup } from '@/features/notifications/dedup';
  * the plumbing without crafting transactions that hit real budget thresholds.
  */
 export function NotificationDevPanel() {
-  if (!__DEV__) return null;
-
+  // Hooks run unconditionally — the __DEV__ bail-out happens at render time,
+  // below, so this component never changes its hook count between renders.
   const push = useBanners((s) => s.push);
   const clear = useBanners((s) => s.clear);
+  const calendar = useCalendar();
+
+  if (!__DEV__) return null;
 
   return (
     <Section title="Notifications · Dev">
@@ -126,14 +130,15 @@ export function NotificationDevPanel() {
             variant="secondary"
             size="md"
             onPress={async () => {
-              await scheduleMonthEndReminder(new Date());
+              const now = new Date();
+              await scheduleMonthEndReminder(now, calendar.system, calendar.formatPeriod(now));
               Alert.alert(
-                'Month-end reminder scheduled',
-                'Re-scheduled for 9:00 AM, three days before the end of this month.',
+                'Period-end reminder scheduled',
+                `Re-scheduled for 9:00 AM, three days before the end of ${calendar.formatPeriod(now)}.`,
               );
             }}
           >
-            (Re)schedule month-end
+            (Re)schedule period-end
           </Button>
         </View>
 
@@ -146,6 +151,7 @@ export function NotificationDevPanel() {
             size="md"
             onPress={async () => {
               await clearDedup();
+              invalidateDedupCache();
               Alert.alert(
                 'Dedup cleared',
                 'Budget and income alerts will fire again next time the rules engine evaluates.',

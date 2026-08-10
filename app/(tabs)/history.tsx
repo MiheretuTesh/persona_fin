@@ -11,6 +11,7 @@ import { useTransactions } from '@/features/transactions/queries';
 import { useCategoryMap } from '@/features/categories/queries';
 import { useProfile } from '@/features/profile/queries';
 import { useCurrency } from '@/features/preferences/store';
+import { useCalendar, type Calendar } from '@/features/preferences/calendar';
 import { formatCurrency } from '@/lib/formatters';
 import type { Transaction } from '@/types/database';
 
@@ -26,9 +27,11 @@ type Row =
   | { type: 'header'; key: string; label: string; net: number }
   | { type: 'item'; key: string; transaction: Transaction };
 
-function groupByDay(transactions: Transaction[], currency: string): Row[] {
+function groupByDay(transactions: Transaction[], calendar: Calendar): Row[] {
   // Group by yyyy-MM-dd in local time. Transactions are already
-  // ordered desc by occurred_at from the query.
+  // ordered desc by occurred_at from the query. The grouping key stays
+  // Gregorian (it's just a stable bucket id); only the *label* is rendered
+  // through the user's calendar.
   const groups = new Map<string, Transaction[]>();
   for (const t of transactions) {
     const day = format(new Date(t.occurred_at), 'yyyy-MM-dd');
@@ -44,8 +47,8 @@ function groupByDay(transactions: Transaction[], currency: string): Row[] {
       : isYesterday(date)
         ? 'Yesterday'
         : isThisYear(date)
-          ? format(date, 'EEE · d MMM')
-          : format(date, 'd MMM yyyy');
+          ? calendar.formatWeekdayDayMonth(date)
+          : calendar.formatDayMonthYear(date);
     const net = items.reduce((s, t) => s + Number(t.amount), 0);
     rows.push({ type: 'header', key: `h:${day}`, label, net });
     for (const t of items) rows.push({ type: 'item', key: t.id, transaction: t });
@@ -60,6 +63,7 @@ export default function History() {
   const [filter, setFilter] = useState<Filter>('all');
   const profile = useProfile();
   const currency = useCurrency();
+  const calendar = useCalendar();
   const txns = useTransactions();
   const categories = useCategoryMap();
 
@@ -78,7 +82,7 @@ export default function History() {
     });
   }, [txns.data, categories.byId, filter, query]);
 
-  const rows = useMemo(() => groupByDay(filtered, currency), [filtered, currency]);
+  const rows = useMemo(() => groupByDay(filtered, calendar), [filtered, calendar]);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>

@@ -8,26 +8,32 @@ import { usePreferences } from './store';
  * on a fresh device we adopt whatever the user already picked on a previous
  * device — as long as they haven't made a different choice locally yet.
  *
+ * "Haven't chosen locally" is tracked explicitly by the store's `_touched`
+ * list rather than inferred from "is it still the default value?", so a user
+ * who deliberately selects the default (USD, or the Gregorian calendar) keeps
+ * that choice instead of having a stale remote row overwrite it.
+ *
  * Mount this hook once in the root layout while authenticated. It runs only
  * after AsyncStorage has rehydrated, to avoid racing the local snapshot.
  */
 export function useHydratePreferencesFromProfile() {
   const profile = useProfile();
   const hydrated = usePreferences((s) => s._hydrated);
-  const localCurrency = usePreferences((s) => s.currency);
-  const setCurrency = usePreferences((s) => s.setCurrency);
+  const adopt = usePreferences((s) => s.adoptFromProfile);
   const hasAdoptedFromProfile = useRef(false);
 
-  useEffect(() => {
-    if (!hydrated || !profile.data?.currency || hasAdoptedFromProfile.current) return;
+  const row = profile.data;
 
-    const remote = profile.data.currency.toUpperCase();
-    // Only adopt the remote value if the user hasn't explicitly changed it on
-    // this device (i.e., local is still at the 'USD' default). That keeps an
-    // in-progress offline change from being clobbered by the server.
-    if (localCurrency === 'USD' && remote !== 'USD') {
-      setCurrency(remote);
-    }
+  useEffect(() => {
+    if (!hydrated || !row || hasAdoptedFromProfile.current) return;
     hasAdoptedFromProfile.current = true;
-  }, [hydrated, profile.data?.currency, localCurrency, setCurrency]);
+
+    adopt({
+      currency: row.currency ? row.currency.toUpperCase() : undefined,
+      calendar: row.calendar_system ?? undefined,
+      calendarScript: row.calendar_script ?? undefined,
+      pushEnabled: row.push_enabled ?? undefined,
+      inAppEnabled: row.inapp_enabled ?? undefined,
+    });
+  }, [hydrated, row, adopt]);
 }

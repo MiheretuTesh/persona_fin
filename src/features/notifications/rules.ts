@@ -1,4 +1,3 @@
-import { format } from 'date-fns';
 import type { Banner } from './store';
 import type { BudgetWithSpend } from '@/features/budgets/queries';
 import type { Category } from '@/types/database';
@@ -14,11 +13,18 @@ import type { Category } from '@/types/database';
  *
  * Channel decision (matches the user-facing decisions in the implementation
  * plan):
- *   - 80% budget warning            → in-app only (soft)
+ *   - 80% budget warning            → push + in-app (soft copy)
  *   - 100% budget reached           → push + in-app
  *   - 120% budget badly exceeded    → push + in-app (stronger copy)
- *   - 80% income consumed           → in-app only (soft)
+ *   - 80% income consumed           → push + in-app (soft copy)
  *   - 95%+ income consumed          → push + in-app (high stakes)
+ *
+ * The two 80% warnings were in-app-only in an earlier revision, on the theory
+ * that a soft heads-up shouldn't interrupt. In practice that made the most
+ * *useful* alert — the one that arrives while you can still change course —
+ * invisible to anyone not holding the phone at that moment. They now go
+ * through both channels; users who don't want them can turn push off wholesale
+ * in Settings.
  */
 
 export type Channel = 'push' | 'inapp';
@@ -34,12 +40,20 @@ export type NotificationCandidate = {
 };
 
 export type RuleInputs = {
-  /** Anchor for "this month". Always pass `new Date()` from the engine; tests pass fixed dates. */
-  now: Date;
-  /** This month's totals, both as positive numbers. */
+  /**
+   * Calendar-scoped identifier for the period under evaluation, e.g.
+   * `g:2026-08` or `e:2018-12` (see `periodScope` in `src/lib/calendar.ts`).
+   *
+   * Every dedup key is suffixed with this, which is what makes an alert fire
+   * once *per period* and re-arm when the period rolls over. It carries the
+   * calendar tag so that switching between Gregorian and Ethiopian months
+   * can't collide two different periods onto one key.
+   */
+  periodScope: string;
+  /** This period's totals, both as positive numbers. */
   monthIncome: number;
   monthExpense: number;
-  /** Per-category budget rows for the current month. */
+  /** Per-category budget rows for the current period. */
   budgets: BudgetWithSpend[];
   /** Looked up by category id for friendlier copy. */
   categoryById: Map<string, Category>;
@@ -53,7 +67,7 @@ const INCOME_WARN = 0.8;
 const INCOME_DANGER = 0.95;
 
 export function evaluateRules(input: RuleInputs): NotificationCandidate[] {
-  const monthKey = format(input.now, 'yyyy-MM');
+  const monthKey = input.periodScope;
   const out: NotificationCandidate[] = [];
 
   // ─── 1. Income vs expenses ────────────────────────────────────────────
@@ -93,13 +107,17 @@ export function evaluateRules(input: RuleInputs): NotificationCandidate[] {
     } else if (ratio >= INCOME_WARN) {
       out.push({
         dedupKey: `income:warn80:${monthKey}`,
-        channels: ['inapp'],
+        channels: ['push', 'inapp'],
         banner: {
           tone: 'warn',
           title: `${pct(ratio)} of your income is spent`,
-          body: 'You\'re on the higher end this month. Worth a quick look at your top categories.',
+          body: 'You\'re on the higher end this period. Worth a quick look at your top categories.',
           icon: 'savings',
           autoDismissMs: 7000,
+        },
+        push: {
+          title: 'Spending heads-up',
+          body: `You've spent ${pct(ratio)} of this period's income. Still time to ease off.`,
         },
       });
     }
@@ -145,13 +163,17 @@ export function evaluateRules(input: RuleInputs): NotificationCandidate[] {
     } else if (ratio >= BUDGET_WARN) {
       out.push({
         dedupKey: `budget:warn80:${b.category_id}:${monthKey}`,
-        channels: ['inapp'],
+        channels: ['push', 'inapp'],
         banner: {
           tone: 'warn',
           title: `${name}: ${pct(ratio)} of budget used`,
           body: `Heads-up — you've spent past 80% of your ${name} limit.`,
           icon: 'warning',
           autoDismissMs: 7000,
+        },
+        push: {
+          title: `${name} — 80% of budget used`,
+          body: `You've spent ${pct(ratio)} of your ${name} limit for this period.`,
         },
       });
     }

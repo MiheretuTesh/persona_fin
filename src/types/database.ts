@@ -13,6 +13,12 @@ export interface Profile {
   avatar_url: string | null;
   currency: string;
   biometric_enabled: boolean;
+  /** 'gregorian' | 'ethiopian' — drives period boundaries and date rendering. */
+  calendar_system: 'gregorian' | 'ethiopian';
+  /** 'amharic' | 'latin' — how Ethiopian month names render. */
+  calendar_script: 'amharic' | 'latin';
+  push_enabled: boolean;
+  inapp_enabled: boolean;
   created_at: string;
   updated_at: string;
 }

@@ -1,13 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
-import { startOfMonth, endOfMonth, format } from 'date-fns';
+import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/features/auth/store';
+import { useCalendarSystem } from '@/features/preferences/store';
+import { endOfPeriod, periodScope, startOfPeriod } from '@/lib/calendar';
 import type { Budget } from '@/types/database';
 
 export type BudgetWithSpend = Budget & { spent: number };
 
 /**
  * Current-period budgets with a computed `spent` per category.
+ *
+ * Period boundaries follow the user's calendar preference — on the Ethiopian
+ * calendar a monthly budget resets on the 1st of each Ethiopian month
+ * (መስከረም 1, ጥቅምት 1, …), not on the Gregorian 1st. `startOfPeriod` /
+ * `endOfPeriod` in `src/lib/calendar.ts` own that decision.
  *
  * IMPORTANT — date handling: Postgres `date` columns are stored as calendar
  * dates (no timezone). We use date-fns `format(d, 'yyyy-MM-dd')` here to match
@@ -16,18 +23,23 @@ export type BudgetWithSpend = Budget & { spent: number };
  * you'd insert `2026-04-01` and query `<= 2026-03-31`, silently losing the
  * just-created row.
  *
- * Carry-over semantics: a budget with `start_on <= thisMonth` applies this
- * month, picking the most recent per category so a May update supersedes
+ * Carry-over semantics: a budget with `start_on <= thisPeriod` applies this
+ * period, picking the most recent per category so a May update supersedes
  * an April one for the same category.
  */
 export function useCurrentBudgets(anchor = new Date()) {
   const userId = useAuth((s) => s.user?.id);
-  const monthStart = startOfMonth(anchor);
-  const monthEnd = endOfMonth(anchor);
-  const monthStartStr = format(monthStart, 'yyyy-MM-dd');
+  const system = useCalendarSystem();
+  const periodStart = startOfPeriod(anchor, system);
+  const periodEnd = endOfPeriod(anchor, system);
+  const periodStartStr = format(periodStart, 'yyyy-MM-dd');
+  // Keyed on the period scope, not the raw anchor — callers routinely pass an
+  // inline `new Date()`, and keying on its millisecond value would mint a new
+  // cache entry on every render.
+  const scope = periodScope(anchor, system);
 
   return useQuery({
-    queryKey: ['budgets', userId, monthStartStr],
+    queryKey: ['budgets', userId, scope],
     enabled: !!userId,
     queryFn: async (): Promise<BudgetWithSpend[]> => {
       const [{ data: budgets, error: bErr }, { data: txns, error: tErr }] = await Promise.all([
@@ -35,14 +47,14 @@ export function useCurrentBudgets(anchor = new Date()) {
           .from('budgets')
           .select('*')
           .eq('period', 'monthly')
-          .lte('start_on', monthStartStr)
+          .lte('start_on', periodStartStr)
           .order('start_on', { ascending: false }),
         supabase
           .from('transactions')
           .select('category_id, amount')
           .eq('kind', 'expense')
-          .gte('occurred_at', monthStart.toISOString())
-          .lte('occurred_at', monthEnd.toISOString()),
+          .gte('occurred_at', periodStart.toISOString())
+          .lte('occurred_at', periodEnd.toISOString()),
       ]);
       if (bErr) throw bErr;
       if (tErr) throw tErr;
